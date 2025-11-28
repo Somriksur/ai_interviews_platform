@@ -1,0 +1,54 @@
+{
+  "compilerOptions": {
+    /* Modern JS target + browser APIs */
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+
+    /* 🧭 Root import alias */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
+
+    /* Custom + default type roots */
+    "typeRoots": ["./types", "./node_modules/@types"],
+
+    /* TypeScript behavior */
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+
+    /* 🚫 Common silent bugs */
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* Build optimization */
+    "incremental": true,
+
+    /* 🧩 Next.js plugin (enables `next lint` + IDE autocomplete) */
+    "plugins": [{ "name": "next" }],
+
+    /* 🧩 Ensure bundled module resolution for Next.js 15+ */
+    "module": "ESNext",
+    "moduleResolution": "bundler"
+  },
+
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "types/**/*.d.ts"
+  ],
+
+  "exclude": ["node_modules"]
+}
