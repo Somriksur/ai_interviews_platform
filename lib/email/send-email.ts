@@ -1,70 +1,100 @@
 /**
- * Email Service using Resend
- * 
- * Setup: npm install resend
- * Add to .env.local: RESEND_API_KEY=your_key
+ * Universal Email Service using Resend
+ * Supports sending to ANY email address with proper domain verification
  */
 
-interface EmailParams {
-    to: string;
-    subject: string;
-    html: string;
-}
+import { EmailConfig, EmailResult, loadEmailConfig, getSenderEmail, getRecipientEmail } from './config';
+import { validateEmailForSending } from './validation';
+import { ERROR_CODES, logEmailError, createActionableError } from './errors';
 
-export async function sendEmail({ to, subject, html }: EmailParams) {
+/**
+ * Send email to any email address
+ * Handles validation, mode routing, and error handling
+ */
+export async function sendEmail({ to, subject, html, from }: EmailConfig): Promise<EmailResult> {
     try {
-        // Check if Resend is configured
-        const apiKey = process.env.RESEND_API_KEY;
-        
-        if (!apiKey) {
-            console.warn("⚠️ RESEND_API_KEY not configured. Email not sent.");
-            return { success: false, error: "Email service not configured" };
+        // Validate email address
+        const validationError = validateEmailForSending(to);
+        if (validationError) {
+            logEmailError(ERROR_CODES.INVALID_EMAIL, to, validationError.error);
+            return validationError;
         }
 
-        // Development mode: send all emails to Resend test inbox OR your verified email
-        const isDevMode = process.env.EMAIL_DEV_MODE === "true";
-        const devEmail = process.env.DEV_EMAIL || "delivered@resend.dev";
-        const recipientEmail = isDevMode ? devEmail : to;
-        
-        if (isDevMode) {
-            console.log(`📧 DEV MODE: Redirecting email from ${to} to ${devEmail}`);
+        // Load configuration
+        const config = loadEmailConfig();
+        if (!config) {
+            const error = createActionableError(ERROR_CODES.MISSING_CONFIG);
+            return { success: false, ...error };
         }
 
+        // Determine recipient based on mode
+        const recipientEmail = getRecipientEmail(to, config);
+        
+        // Determine sender
+        const senderEmail = from || getSenderEmail(config);
+
+        // Prepare subject (add dev mode prefix if needed)
+        const emailSubject = config.EMAIL_DEV_MODE ? `[DEV - ${to}] ${subject}` : subject;
+
+        // Send email via Resend API
         const response = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${apiKey}`,
+                "Authorization": `Bearer ${config.RESEND_API_KEY}`,
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                from: "HireFlow <onboarding@resend.dev>", // Change to your domain
+                from: senderEmail,
                 to: [recipientEmail],
-                subject: isDevMode ? `[DEV - ${to}] ${subject}` : subject,
+                subject: emailSubject,
                 html,
+                reply_to: config.SENDER_EMAIL || undefined,
             }),
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            console.error("❌ Email send failed:", error);
-            console.error("📧 Recipient:", to);
-            console.error("💡 TIP: For testing, set EMAIL_DEV_MODE=true in .env.local");
-            return { success: false, error };
+            const errorText = await response.text();
+            let errorData;
+            
+            try {
+                errorData = JSON.parse(errorText);
+            } catch {
+                errorData = { message: errorText };
+            }
+
+            // Determine error type
+            let errorCode = ERROR_CODES.DELIVERY_FAILED;
+            if (errorData.message?.includes('domain') || errorData.message?.includes('verify')) {
+                errorCode = ERROR_CODES.DOMAIN_NOT_VERIFIED;
+            } else if (response.status >= 500) {
+                errorCode = ERROR_CODES.SERVICE_UNAVAILABLE;
+            }
+
+            logEmailError(errorCode, to, errorData.message || errorText);
+            
+            const actionableError = createActionableError(errorCode, to, errorData.message);
+            return { success: false, ...actionableError };
         }
 
         const data = await response.json();
+        
+        // Log success
         console.log("✅ Email sent successfully!");
         console.log("   Email ID:", data.id);
         console.log("   To:", recipientEmail);
-        if (isDevMode) {
+        if (config.EMAIL_DEV_MODE) {
             console.log("   Original recipient:", to);
             console.log("   📬 Check: https://resend.com/emails");
         }
+        
         return { success: true, id: data.id };
 
     } catch (error) {
-        console.error("❌ Email error:", error);
-        return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        logEmailError(ERROR_CODES.DELIVERY_FAILED, to, errorMessage);
+        
+        const actionableError = createActionableError(ERROR_CODES.DELIVERY_FAILED, to, errorMessage);
+        return { success: false, ...actionableError };
     }
 }
 
