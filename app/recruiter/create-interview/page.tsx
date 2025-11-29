@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import MultipleEmailInvitations from "@/components/MultipleEmailInvitations";
 
 // Tech stack suggestions for each role
 const ROLE_TECH_STACKS: Record<string, string[]> = {
@@ -403,7 +404,10 @@ export default function CreateInterviewPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-2">Candidate Email *</label>
+                    <label className="block text-sm font-medium mb-2">
+                        Candidate Email * 
+                        <span className="text-sm text-gray-400 ml-2">(For single invitation)</span>
+                    </label>
                     <input
                         type="email"
                         name="candidateEmail"
@@ -414,7 +418,7 @@ export default function CreateInterviewPage() {
                         required
                     />
                     <p className="text-sm text-gray-400 mt-1">
-                        Interview will be assigned to this candidate
+                        Or use the multiple invitations section below for bulk sending
                     </p>
                 </div>
 
@@ -503,8 +507,27 @@ export default function CreateInterviewPage() {
                             disabled={loading}
                             className="btn-primary w-full"
                         >
-                            ✅ Create Interview
+                            ✅ Create Single Interview
                         </Button>
+
+                        {/* Multiple Email Invitations Section */}
+                        <div className="mt-8 pt-8 border-t-2">
+                            <MultipleEmailInvitations
+                                interviewData={{
+                                    role: form.role,
+                                    level: form.level,
+                                    type: form.type,
+                                    techstack: form.techstack.split(",").map(t => t.trim()),
+                                    questions: questions,
+                                }}
+                                onSuccess={() => {
+                                    // Optionally redirect or refresh
+                                    setTimeout(() => {
+                                        router.push("/recruiter/dashboard");
+                                    }, 2000);
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
             </div>

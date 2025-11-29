@@ -28,11 +28,18 @@ export default async function RecruiterDashboard() {
                     <h1 className="text-3xl font-bold">Recruiter Dashboard</h1>
                     <p className="text-gray-400 mt-2">Welcome back, {user.name}!</p>
                 </div>
-                <Button asChild className="btn-primary">
-                    <Link href="/recruiter/create-interview">
-                        ➕ Create New Interview
-                    </Link>
-                </Button>
+                <div className="flex gap-3">
+                    <Button asChild variant="outline">
+                        <Link href="/recruiter/bulk-invite">
+                            📧 Bulk Invitations
+                        </Link>
+                    </Button>
+                    <Button asChild className="btn-primary">
+                        <Link href="/recruiter/create-interview">
+                            ➕ Create Interview
+                        </Link>
+                    </Button>
+                </div>
             </div>
 
             {/* Analytics Dashboard */}
