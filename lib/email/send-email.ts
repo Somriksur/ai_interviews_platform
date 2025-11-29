@@ -17,8 +17,16 @@ export async function sendEmail({ to, subject, html }: EmailParams) {
         const apiKey = process.env.RESEND_API_KEY;
         
         if (!apiKey) {
-            console.warn("RESEND_API_KEY not configured. Email not sent.");
+            console.warn("⚠️ RESEND_API_KEY not configured. Email not sent.");
             return { success: false, error: "Email service not configured" };
+        }
+
+        // Development mode: send all emails to Resend test inbox
+        const isDevMode = process.env.EMAIL_DEV_MODE === "true";
+        const recipientEmail = isDevMode ? "delivered@resend.dev" : to;
+        
+        if (isDevMode) {
+            console.log(`📧 DEV MODE: Redirecting email from ${to} to delivered@resend.dev`);
         }
 
         const response = await fetch("https://api.resend.com/emails", {
@@ -29,24 +37,32 @@ export async function sendEmail({ to, subject, html }: EmailParams) {
             },
             body: JSON.stringify({
                 from: "HireFlow <onboarding@resend.dev>", // Change to your domain
-                to: [to],
-                subject,
+                to: [recipientEmail],
+                subject: isDevMode ? `[DEV - ${to}] ${subject}` : subject,
                 html,
             }),
         });
 
         if (!response.ok) {
             const error = await response.text();
-            console.error("Email send failed:", error);
+            console.error("❌ Email send failed:", error);
+            console.error("📧 Recipient:", to);
+            console.error("💡 TIP: For testing, set EMAIL_DEV_MODE=true in .env.local");
             return { success: false, error };
         }
 
         const data = await response.json();
-        console.log("✅ Email sent:", data.id);
+        console.log("✅ Email sent successfully!");
+        console.log("   Email ID:", data.id);
+        console.log("   To:", recipientEmail);
+        if (isDevMode) {
+            console.log("   Original recipient:", to);
+            console.log("   📬 Check: https://resend.com/emails");
+        }
         return { success: true, id: data.id };
 
     } catch (error) {
-        console.error("Email error:", error);
+        console.error("❌ Email error:", error);
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
