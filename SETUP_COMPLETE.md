@@ -120,7 +120,7 @@ When you're ready to send to real email addresses:
 **Time needed:** 10-15 minutes
 
 **Steps:**
-1. Get a free domain from [Freenom](https://freenom.com)
+1. Get a domain (GitHub Pages free or Namecheap $0.99/year)
 2. Verify domain at [Resend](https://resend.com/domains)
 3. Update `.env.local`:
    ```bash

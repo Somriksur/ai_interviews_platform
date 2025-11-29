@@ -10,29 +10,77 @@ Enable your HireFlow application to send emails to **ANY email address** (Gmail,
 - ✅ Resend API configured
 - ⚠️ **Domain verification needed** for universal sending
 
-## 🚀 Quick Setup (10-15 minutes)
+## 🚀 Quick Setup Options
 
-### Option 1: Use a Free Domain (Recommended)
+### ⚡ Option 0: Use Development Mode (EASIEST - Works Now!)
+
+**Time needed:** 0 minutes - Already working!
+
+**Your current setup:**
+```bash
+EMAIL_DEV_MODE=true
+DEV_EMAIL=somriksur@gmail.com
+```
+
+**What this means:**
+- ✅ Send to ANY email address in your app
+- ✅ All emails arrive at `somriksur@gmail.com`
+- ✅ Perfect for development and testing
+- ✅ No domain needed!
+- ✅ Works immediately!
+
+**Test it:**
+```bash
+node test-universal-email.js
+# Enter: anyone@gmail.com
+# Email arrives at: somriksur@gmail.com
+```
+
+**When to use:**
+- Development and testing
+- MVP and demos
+- Before production launch
+- When you don't need to send to real addresses yet
+
+**Recommendation:** Use this mode until you're ready to launch to real users!
+
+---
+
+### Option 1: Use a Free/Cheap Domain (For Production)
 
 #### Step 1: Get a Free Domain (3 minutes)
 
-**Free Domain Providers:**
-- **Freenom** (freenom.com) - Free .tk, .ml, .ga, .cf, .gq domains
-- **GitHub Pages** - Use yourusername.github.io
-- **InfinityFree** - Free subdomain with hosting
+**⚠️ Note:** Freenom is currently unavailable for new registrations.
 
-**Recommended: Freenom**
-1. Go to [Freenom.com](https://www.freenom.com)
-2. Search for a domain name (e.g., "hireflow", "yourname-app")
-3. Select a free TLD (.tk, .ml, .ga)
-4. Click "Get it now!" → "Checkout"
-5. Create free account (use 12 months free)
-6. Complete registration
+**Working Free Domain Options:**
+
+**Option A: GitHub Pages (Recommended - Free & Easy)**
+1. Create a GitHub repository named `yourusername.github.io`
+2. Your domain will be: `yourusername.github.io`
+3. Free forever, no registration needed
+4. Example: `somriksur.github.io`
+
+**Option B: Vercel Custom Domain (Free with Vercel)**
+1. Deploy your app to Vercel (free)
+2. Get free subdomain: `yourapp.vercel.app`
+3. Can use this for email sending
+4. Example: `hireflow.vercel.app`
+
+**Option C: Free Subdomain Services**
+- **DuckDNS** (duckdns.org) - Free subdomains like `yourapp.duckdns.org`
+- **Afraid.org** - Free DNS hosting with subdomains
+- **No-IP** (noip.com) - Free dynamic DNS
+
+**Option D: Cheap Paid Domain (Recommended for Production)**
+- **Namecheap** - $0.99/year for .xyz domains
+- **Porkbun** - $1-3/year for various TLDs
+- **Google Domains** - $12/year for .com
 
 **Domain Suggestions:**
-- `hireflow-app.tk`
-- `yourname-interviews.ml`
-- `recruit-platform.ga`
+- `yourusername.github.io` (GitHub Pages)
+- `hireflow-app.vercel.app` (Vercel)
+- `yourapp.duckdns.org` (DuckDNS)
+- `hireflow.xyz` (Cheap paid - $0.99/year)
 
 #### Step 2: Add Domain to Resend (2 minutes)
 
@@ -62,21 +110,34 @@ Name: resend._domainkey
 Value: p=MIGfMA0GCSqGSIb3...
 ```
 
-**For Freenom:**
-1. Login to [Freenom](https://my.freenom.com)
-2. Go to "Services" → "My Domains"
-3. Click "Manage Domain" next to your domain
-4. Click "Manage Freenom DNS"
-5. Add each record:
-   - **TXT Record**: Name: `@`, Target: `resend-verify=...`
-   - **MX Record**: Name: `@`, Target: `feedback-smtp.resend.com`, Priority: `10`
+**For GitHub Pages:**
+1. Go to your repository settings
+2. Pages → Custom domain
+3. Add your domain
+4. Go to your DNS provider (GitHub doesn't manage DNS directly)
+5. You'll need to use Cloudflare (free) for DNS management
+6. Add DNS records in Cloudflare
+
+**For Vercel:**
+1. Go to your project settings
+2. Domains → Add domain
+3. Vercel will show you DNS records
+4. Add records in Vercel's DNS management
+
+**For Cloudflare (Free DNS Management):**
+1. Sign up at [Cloudflare](https://cloudflare.com)
+2. Add your domain
+3. Go to DNS → Records
+4. Add each record:
+   - **TXT Record**: Name: `@`, Content: `resend-verify=...`
+   - **MX Record**: Name: `@`, Content: `feedback-smtp.resend.com`, Priority: `10`
    - **DKIM Records**: Add all 3 DKIM records as shown
-6. Click "Save Changes"
+5. Click "Save"
 
 **For Other Providers:**
-- **GoDaddy**: DNS Management → Add Records
 - **Namecheap**: Advanced DNS → Add Records
-- **Cloudflare**: DNS → Add Records
+- **Porkbun**: DNS → Add Records
+- **DuckDNS**: DNS Settings → Add Records
 
 #### Step 4: Verify Domain (2-5 minutes)
 
