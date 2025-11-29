@@ -105,7 +105,7 @@ export default function GlobalSearch({ onClose }: GlobalSearchProps) {
                                 onClick={handleSearch}
                                 className="w-full text-left px-4 py-3 hover:bg-accent rounded-lg transition-colors"
                             >
-                                Search for "<strong>{query}</strong>"
+                                Search for &quot;<strong>{query}</strong>&quot;
                             </button>
                         </div>
                     )}

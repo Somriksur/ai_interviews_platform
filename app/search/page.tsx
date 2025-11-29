@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { SearchEngine, saveSearchHistory, getSearchHistory } from "@/lib/utils/search-engine";
+import { saveSearchHistory, getSearchHistory } from "@/lib/utils/search-engine";
 
 export default function SearchPage() {
     const searchParams = useSearchParams();
@@ -22,13 +22,14 @@ export default function SearchPage() {
 
     useEffect(() => {
         if (query) {
-            performSearch(query);
+            performSearch();
             saveSearchHistory(query);
             setSearchHistory(getSearchHistory());
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
-    const performSearch = async (searchQuery: string) => {
+    const performSearch = async () => {
         setLoading(true);
         try {
             // In a real app, this would be an API call
@@ -36,7 +37,7 @@ export default function SearchPage() {
             await new Promise((resolve) => setTimeout(resolve, 500));
 
             // Mock results
-            const mockResults = [
+            const mockResults: Array<{ type: string; item: Record<string, unknown> }> = [
                 {
                     type: "interview",
                     item: {
@@ -138,7 +139,7 @@ export default function SearchPage() {
                 <div className="space-mobile">
                     <div className="flex items-center justify-between">
                         <h2 className="text-responsive-lg font-semibold">
-                            Results for "{query}"
+                            Results for &quot;{query}&quot;
                         </h2>
                         <span className="text-sm text-gray-500">
                             {results.length} result{results.length !== 1 ? "s" : ""}
@@ -223,8 +224,8 @@ export default function SearchPage() {
                     <h2 className="text-lg font-semibold mb-3">💡 Search Tips</h2>
                     <ul className="space-y-2 text-sm text-gray-600">
                         <li>• Search by candidate name or email</li>
-                        <li>• Search by job role (e.g., "Frontend Developer")</li>
-                        <li>• Search by tech stack (e.g., "React", "Python")</li>
+                        <li>• Search by job role (e.g., &quot;Frontend Developer&quot;)</li>
+                        <li>• Search by tech stack (e.g., &quot;React&quot;, &quot;Python&quot;)</li>
                         <li>• Search by interview status</li>
                         <li>• Use keywords from questions or feedback</li>
                     </ul>
