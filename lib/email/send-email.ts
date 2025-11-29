@@ -21,12 +21,13 @@ export async function sendEmail({ to, subject, html }: EmailParams) {
             return { success: false, error: "Email service not configured" };
         }
 
-        // Development mode: send all emails to Resend test inbox
+        // Development mode: send all emails to Resend test inbox OR your verified email
         const isDevMode = process.env.EMAIL_DEV_MODE === "true";
-        const recipientEmail = isDevMode ? "delivered@resend.dev" : to;
+        const devEmail = process.env.DEV_EMAIL || "delivered@resend.dev";
+        const recipientEmail = isDevMode ? devEmail : to;
         
         if (isDevMode) {
-            console.log(`📧 DEV MODE: Redirecting email from ${to} to delivered@resend.dev`);
+            console.log(`📧 DEV MODE: Redirecting email from ${to} to ${devEmail}`);
         }
 
         const response = await fetch("https://api.resend.com/emails", {
