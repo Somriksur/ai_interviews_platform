@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase/admin';
+import { db as adminDb } from '@/firebase/admin';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { collegeId: string } }
+  { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const { collegeId } = await params;
     const { name, email, rollNumber, branch, year, cgpa, skills, organizationId } = await request.json();
 
     if (!name || !email || !rollNumber) {
@@ -16,7 +17,7 @@ export async function POST(
     }
 
     const studentRef = await adminDb.collection('students').add({
-      collegeId: params.collegeId,
+      collegeId,
       organizationId,
       name,
       email,
@@ -29,10 +30,10 @@ export async function POST(
     });
 
     // Update college stats
-    const collegeDoc = await adminDb.collection('colleges').doc(params.collegeId).get();
+    const collegeDoc = await adminDb.collection('colleges').doc(collegeId).get();
     if (collegeDoc.exists) {
       const currentStats = collegeDoc.data()?.stats || {};
-      await adminDb.collection('colleges').doc(params.collegeId).update({
+      await adminDb.collection('colleges').doc(collegeId).update({
         'stats.totalStudents': (currentStats.totalStudents || 0) + 1,
       });
     }
@@ -52,12 +53,13 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { collegeId: string } }
+  { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const { collegeId } = await params;
     const snapshot = await adminDb
       .collection('students')
-      .where('collegeId', '==', params.collegeId)
+      .where('collegeId', '==', collegeId)
       .orderBy('createdAt', 'desc')
       .get();
 
