@@ -35,24 +35,86 @@ export default async function RecruiterDashboard() {
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="card p-6">
-                    <h3 className="text-lg font-semibold">Total Interviews</h3>
+            {/* Analytics Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="card p-6 bg-blue-50 dark:bg-blue-900/20">
+                    <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400">Total Interviews</h3>
                     <p className="text-3xl font-bold mt-2">{interviews.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">All time</p>
                 </div>
-                <div className="card p-6">
-                    <h3 className="text-lg font-semibold">Assigned</h3>
-                    <p className="text-3xl font-bold mt-2">
-                        {interviews.filter((i: Interview) => i.status === "assigned").length}
+                <div className="card p-6 bg-yellow-50 dark:bg-yellow-900/20">
+                    <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400">Pending</h3>
+                    <p className="text-3xl font-bold mt-2 text-yellow-600">
+                        {interviews.filter((i: Interview) => i.status === "pending").length}
                     </p>
+                    <p className="text-xs text-gray-500 mt-1">Not started</p>
                 </div>
-                <div className="card p-6">
-                    <h3 className="text-lg font-semibold">Completed</h3>
-                    <p className="text-3xl font-bold mt-2">
+                <div className="card p-6 bg-purple-50 dark:bg-purple-900/20">
+                    <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400">In Progress</h3>
+                    <p className="text-3xl font-bold mt-2 text-purple-600">
+                        {interviews.filter((i: Interview) => i.status === "in-progress").length}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">Ongoing</p>
+                </div>
+                <div className="card p-6 bg-green-50 dark:bg-green-900/20">
+                    <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400">Completed</h3>
+                    <p className="text-3xl font-bold mt-2 text-green-600">
                         {interviews.filter((i: Interview) => i.status === "completed").length}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                        {interviews.length > 0 
+                            ? `${Math.round((interviews.filter((i: Interview) => i.status === "completed").length / interviews.length) * 100)}% completion rate`
+                            : "0% completion rate"
+                        }
                     </p>
                 </div>
             </div>
+
+            {/* Additional Analytics */}
+            {interviews.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="card p-6">
+                        <h3 className="text-lg font-semibold mb-4">📊 Most Used Roles</h3>
+                        <div className="space-y-2">
+                            {Object.entries(
+                                interviews.reduce((acc: any, i: Interview) => {
+                                    acc[i.role] = (acc[i.role] || 0) + 1;
+                                    return acc;
+                                }, {})
+                            )
+                            .sort(([,a]: any, [,b]: any) => b - a)
+                            .slice(0, 5)
+                            .map(([role, count]: any) => (
+                                <div key={role} className="flex justify-between items-center">
+                                    <span className="text-sm">{role}</span>
+                                    <span className="font-semibold">{count}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="card p-6">
+                        <h3 className="text-lg font-semibold mb-4">💻 Popular Tech Stacks</h3>
+                        <div className="space-y-2">
+                            {Object.entries(
+                                interviews.reduce((acc: any, i: Interview) => {
+                                    i.techstack.forEach((tech: string) => {
+                                        acc[tech] = (acc[tech] || 0) + 1;
+                                    });
+                                    return acc;
+                                }, {})
+                            )
+                            .sort(([,a]: any, [,b]: any) => b - a)
+                            .slice(0, 5)
+                            .map(([tech, count]: any) => (
+                                <div key={tech} className="flex justify-between items-center">
+                                    <span className="text-sm">{tech}</span>
+                                    <span className="font-semibold">{count}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <section>
                 <h2 className="text-2xl font-semibold mb-4">Your Interviews</h2>

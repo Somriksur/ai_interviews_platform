@@ -1,6 +1,7 @@
 import { Toaster } from "sonner";
 import type { Metadata } from "next";
 import "./globals.css";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
     title: "HireFlow - AI-Powered Voice Interviews",
@@ -20,10 +21,11 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en" className="dark" suppressHydrationWarning>
+        <html lang="en" suppressHydrationWarning>
         <body className="antialiased pattern font-sans">
         {children}
         <Toaster />
+        <ThemeToggle />
         </body>
         </html>
     );

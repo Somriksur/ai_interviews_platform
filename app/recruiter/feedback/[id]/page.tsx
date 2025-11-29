@@ -4,6 +4,7 @@ import { db } from "@/firebase/admin";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import ExportPDFButton from "@/components/ExportPDFButton";
 
 export default async function RecruiterFeedbackPage({
     params,
@@ -54,10 +55,19 @@ export default async function RecruiterFeedbackPage({
 
     return (
         <div className="container mx-auto p-6 max-w-5xl">
-            <div className="mb-6">
+            <div className="mb-6 flex justify-between items-center">
                 <Button asChild variant="outline">
                     <Link href="/recruiter/dashboard">← Back to Dashboard</Link>
                 </Button>
+                <ExportPDFButton
+                    interviewData={{
+                        candidateName: candidate?.name || "Unknown",
+                        role: interview.role,
+                        score: feedback.totalScore,
+                        questions: feedback.transcript?.filter((t: { role: string }) => t.role === "assistant").map((t: { content: string }) => t.content) || [],
+                        answers: feedback.transcript?.filter((t: { role: string }) => t.role === "user").map((t: { content: string }) => t.content) || [],
+                    }}
+                />
             </div>
 
             <div className="card p-8 space-y-8">

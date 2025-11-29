@@ -428,13 +428,74 @@ export default function CreateInterviewPage() {
 
                 {questions.length > 0 && (
                     <div className="space-y-4">
-                        <h3 className="text-xl font-semibold">Generated Questions</h3>
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-xl font-semibold">Generated Questions</h3>
+                            <Button
+                                onClick={() => setQuestions([])}
+                                variant="outline"
+                                size="sm"
+                            >
+                                🔄 Regenerate
+                            </Button>
+                        </div>
                         <div className="space-y-2">
                             {questions.map((q, i) => (
-                                <div key={i} className="p-3 border rounded-lg bg-background">
-                                    <span className="font-semibold">{i + 1}.</span> {q}
+                                <div key={i} className="p-3 border rounded-lg bg-background space-y-2">
+                                    <div className="flex justify-between items-start">
+                                        <span className="font-semibold">{i + 1}.</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    const newQ = prompt("Edit question:", q);
+                                                    if (newQ) {
+                                                        const updated = [...questions];
+                                                        updated[i] = newQ;
+                                                        setQuestions(updated);
+                                                    }
+                                                }}
+                                                className="text-blue-500 hover:text-blue-700 text-sm"
+                                            >
+                                                ✏️ Edit
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (confirm("Delete this question?")) {
+                                                        setQuestions(questions.filter((_, idx) => idx !== i));
+                                                    }
+                                                }}
+                                                className="text-red-500 hover:text-red-700 text-sm"
+                                            >
+                                                🗑️ Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p className="ml-6">{q}</p>
                                 </div>
                             ))}
+                        </div>
+
+                        <Button
+                            onClick={() => {
+                                const newQ = prompt("Enter new question:");
+                                if (newQ) setQuestions([...questions, newQ]);
+                            }}
+                            variant="outline"
+                            className="w-full"
+                        >
+                            ➕ Add Custom Question
+                        </Button>
+
+                        <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                            <h4 className="font-semibold mb-2">📋 Interview Preview</h4>
+                            <div className="space-y-1 text-sm">
+                                <p><strong>Role:</strong> {form.role}</p>
+                                <p><strong>Level:</strong> {form.level}</p>
+                                <p><strong>Type:</strong> {form.type}</p>
+                                <p><strong>Tech Stack:</strong> {form.techstack}</p>
+                                <p><strong>Questions:</strong> {questions.length}</p>
+                                <p><strong>Candidate:</strong> {form.candidateEmail}</p>
+                                <p><strong>Estimated Time:</strong> {questions.length * 5} minutes</p>
+                            </div>
                         </div>
 
                         <Button

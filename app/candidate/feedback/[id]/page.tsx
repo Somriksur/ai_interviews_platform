@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/actions/auth.action";
 import { db } from "@/firebase/admin";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import ExportPDFButton from "@/components/ExportPDFButton";
 
 export default async function FeedbackPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = await params;
@@ -28,9 +29,20 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
         <div className="container mx-auto p-6 max-w-4xl space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold">Interview Feedback</h1>
-                <Button asChild>
-                    <Link href="/candidate/dashboard">Back to Dashboard</Link>
-                </Button>
+                <div className="flex gap-2">
+                    <ExportPDFButton
+                        interviewData={{
+                            candidateName: user.name || "Unknown",
+                            role: interview.role,
+                            score: feedback.totalScore,
+                            questions: feedback.transcript?.filter((t: { role: string }) => t.role === "assistant").map((t: { content: string }) => t.content) || [],
+                            answers: feedback.transcript?.filter((t: { role: string }) => t.role === "user").map((t: { content: string }) => t.content) || [],
+                        }}
+                    />
+                    <Button asChild>
+                        <Link href="/candidate/dashboard">Back to Dashboard</Link>
+                    </Button>
+                </div>
             </div>
 
             <div className="card p-6 space-y-4">
