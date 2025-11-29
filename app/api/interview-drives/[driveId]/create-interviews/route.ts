@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as adminDb } from '@/firebase/admin';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { driveId: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ driveId: string }> }) {
   try {
+    const { driveId } = await params;
     const { questions, techstack, level, type } = await request.json();
 
     // Get drive details
-    const driveDoc = await adminDb.collection('interview_drives').doc(params.driveId).get();
+    const driveDoc = await adminDb.collection('interview_drives').doc(driveId).get();
     
     if (!driveDoc.exists) {
       return NextResponse.json(
@@ -56,7 +54,7 @@ export async function POST(
           score: null,
           completedAt: null,
           // Campus recruitment specific fields
-          driveId: params.driveId,
+          driveId: driveId,
           studentId: studentId,
           collegeId: studentData.collegeId,
           organizationId: studentData.organizationId,
@@ -69,7 +67,7 @@ export async function POST(
     await batch.commit();
 
     // Update drive status
-    await adminDb.collection('interview_drives').doc(params.driveId).update({
+    await adminDb.collection('interview_drives').doc(driveId).update({
       status: 'in-progress',
     });
 

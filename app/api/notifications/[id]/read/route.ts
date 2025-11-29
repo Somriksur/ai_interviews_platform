@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as adminDb } from "@/firebase/admin";
 
-export async function POST(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const notificationId = params.id;
+    const { id } = await params;
+        const notificationId = id;
 
         await adminDb.collection("notifications").doc(notificationId).update({
             read: true,

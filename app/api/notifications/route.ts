@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
             createdAt: doc.data().createdAt?.toDate() || new Date(),
         }));
 
-        const unreadCount = notifications.filter((n: { read: boolean }) => !n.read).length;
+        const unreadCount = notifications.filter((n: any) => !n.read).length;
 
         return NextResponse.json({
             notifications,

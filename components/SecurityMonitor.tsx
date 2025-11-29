@@ -14,7 +14,7 @@ export default function SecurityMonitorComponent({
     candidateId,
     enabled = true,
 }: SecurityMonitorProps) {
-    const [monitor, setMonitor] = useState<SecurityMonitor | null>(null);
+    const [, setMonitor] = useState<SecurityMonitor | null>(null);
     const [summary, setSummary] = useState<ReturnType<SecurityMonitor["getSummary"]> | null>(null);
 
     useEffect(() => {

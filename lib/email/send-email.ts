@@ -5,7 +5,7 @@
 
 import { EmailConfig, EmailResult, loadEmailConfig, getSenderEmail, getRecipientEmail } from './config';
 import { validateEmailForSending } from './validation';
-import { ERROR_CODES, logEmailError, createActionableError } from './errors';
+import { ERROR_CODES, ErrorCode, logEmailError, createActionableError } from './errors';
 
 /**
  * Send email to any email address
@@ -63,7 +63,7 @@ export async function sendEmail({ to, subject, html, from }: EmailConfig): Promi
             }
 
             // Determine error type
-            let errorCode = ERROR_CODES.DELIVERY_FAILED;
+            let errorCode: ErrorCode = ERROR_CODES.DELIVERY_FAILED;
             if (errorData.message?.includes('domain') || errorData.message?.includes('verify')) {
                 errorCode = ERROR_CODES.DOMAIN_NOT_VERIFIED;
             } else if (response.status >= 500) {

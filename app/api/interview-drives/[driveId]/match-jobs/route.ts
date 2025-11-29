@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as adminDb } from '@/firebase/admin';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { driveId: string } }
-) {
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ driveId: string }> }) {
   try {
+    const { driveId } = await params;
     // Get drive details
-    const driveDoc = await adminDb.collection('interview_drives').doc(params.driveId).get();
+    const driveDoc = await adminDb.collection('interview_drives').doc(driveId).get();
     
     if (!driveDoc.exists) {
       return NextResponse.json(
@@ -21,7 +19,7 @@ export async function POST(
     // Get all placement reports for this drive
     const reportsSnapshot = await adminDb
       .collection('placement_reports')
-      .where('driveId', '==', params.driveId)
+      .where('driveId', '==', driveId)
       .get();
 
     if (reportsSnapshot.empty) {
@@ -66,7 +64,7 @@ export async function POST(
       // Save matches
       const matchRef = await adminDb.collection('student_job_matches').add({
         studentId: reportData.studentId,
-        driveId: params.driveId,
+        driveId: driveId,
         matches: matches.slice(0, 5), // Top 5 matches
         recommendedCategory: reportData.salaryBand,
         generatedAt: new Date(),

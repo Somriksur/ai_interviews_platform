@@ -18,7 +18,7 @@ interface PlacementReport {
 }
 
 export default function ReportsPage({ params }: { params: { orgId: string } }) {
-  const [reports, setReports] = useState<PlacementReport[]>([]);
+  const [reports] = useState<PlacementReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
 

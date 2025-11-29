@@ -130,7 +130,7 @@ export function validateEmailDetailed(email: string): EmailValidation {
  * @param email - Email address to validate
  * @returns Error response or null if valid
  */
-export function validateEmailForSending(email: string): { success: false; error: string; code: string; suggestion: string } | null {
+export function validateEmailForSending(email: string): { success: false; error: string; code: string; suggestion?: string; recipient?: string } | null {
   if (!validateEmail(email)) {
     const validation = validateEmailDetailed(email);
     const errorResponse = createActionableError(

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface Organization {
@@ -30,7 +30,7 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
     completedDrives: 0,
   });
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  // const router = useRouter();
 
   useEffect(() => {
     fetchOrganizationData();

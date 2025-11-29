@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as adminDb } from '@/firebase/admin';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { orgId: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
+    const { orgId } = await params;
     const { name, description, role, colleges } = await request.json();
 
     if (!name || !role) {
@@ -16,7 +14,7 @@ export async function POST(
     }
 
     const driveRef = await adminDb.collection('interview_drives').add({
-      organizationId: params.orgId,
+      organizationId: orgId,
       name,
       description: description || '',
       role,
@@ -45,14 +43,12 @@ export async function POST(
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { orgId: string } }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
+    const { orgId } = await params;
     const snapshot = await adminDb
       .collection('interview_drives')
-      .where('organizationId', '==', params.orgId)
+      .where('organizationId', '==', orgId)
       .orderBy('createdAt', 'desc')
       .get();
 

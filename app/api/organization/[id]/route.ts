@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as adminDb } from '@/firebase/admin';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const orgDoc = await adminDb.collection('organizations').doc(params.id).get();
+    const { id } = await params;
+    const orgDoc = await adminDb.collection('organizations').doc(id).get();
 
     if (!orgDoc.exists) {
       return NextResponse.json(
@@ -28,14 +26,12 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const updates = await request.json();
 
-    await adminDb.collection('organizations').doc(params.id).update({
+    await adminDb.collection('organizations').doc(id).update({
       ...updates,
       updatedAt: new Date(),
     });

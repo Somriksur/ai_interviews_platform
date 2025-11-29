@@ -38,7 +38,7 @@ export function loadEmailConfig(): EmailEnvironment | null {
 
   // Parse dev mode - handle string "true"/"false" and boolean
   const devModeStr = process.env.EMAIL_DEV_MODE;
-  const emailDevMode = devModeStr === "true" || devModeStr === true;
+  const emailDevMode = devModeStr === "true";
 
   return {
     RESEND_API_KEY: apiKey,

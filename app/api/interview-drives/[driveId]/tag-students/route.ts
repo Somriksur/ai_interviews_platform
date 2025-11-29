@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as adminDb } from '@/firebase/admin';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { driveId: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ driveId: string }> }) {
   try {
+    const { driveId } = await params;
     const { studentIds } = await request.json();
 
     if (!studentIds || !Array.isArray(studentIds)) {
@@ -15,7 +13,7 @@ export async function POST(
       );
     }
 
-    await adminDb.collection('interview_drives').doc(params.driveId).update({
+    await adminDb.collection('interview_drives').doc(driveId).update({
       taggedStudents: studentIds,
       'stats.totalStudents': studentIds.length,
     });

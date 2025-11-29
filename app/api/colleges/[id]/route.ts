@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as adminDb } from '@/firebase/admin';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const collegeDoc = await adminDb.collection('colleges').doc(params.id).get();
+    const { id } = await params;
+    const collegeDoc = await adminDb.collection('colleges').doc(id).get();
 
     if (!collegeDoc.exists) {
       return NextResponse.json(
@@ -28,14 +26,12 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const updates = await request.json();
 
-    await adminDb.collection('colleges').doc(params.id).update({
+    await adminDb.collection('colleges').doc(id).update({
       ...updates,
       updatedAt: new Date(),
     });
@@ -50,12 +46,10 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await adminDb.collection('colleges').doc(params.id).delete();
+    const { id } = await params;
+    await adminDb.collection('colleges').doc(id).delete();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting college:', error);

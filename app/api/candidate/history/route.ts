@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 export async function GET(request: NextRequest) {
     try {
         // Get user from session
-        const cookieStore = cookies();
+        const cookieStore = await cookies();
         const session = cookieStore.get("session");
 
         if (!session) {
