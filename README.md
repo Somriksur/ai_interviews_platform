@@ -288,7 +288,7 @@ npm install resend jspdf jspdf-autotable
 - `jspdf` - PDF report generation
 - `jspdf-autotable` - PDF tables for reports
 
-### Step 4: Verify Installation
+### Step 5: Verify Installation
 ```bash
 # Check Node.js
 node --version  # Should be 18+
@@ -340,8 +340,19 @@ NEXT_PUBLIC_BASE_URL=http://localhost:3000
 # 🔹 Groq AI (for answer evaluation - FAST & FREE!)
 GROQ_API_KEY=your_groq_api_key
 
-# 🔹 Resend (for email notifications - Phase 2)
+# 🔹 Resend Email Service (Phase 2)
 RESEND_API_KEY=your_resend_api_key
+
+# 🔹 Email Configuration
+# Development Mode: When true, all emails redirect to DEV_EMAIL for testing
+# Production Mode: When false, emails send to actual recipients (requires verified domain)
+EMAIL_DEV_MODE=true
+DEV_EMAIL=your-email@gmail.com
+
+# 🔹 Email Sender Configuration (Optional - for production)
+# VERIFIED_DOMAIN=yourdomain.com
+# SENDER_EMAIL=noreply@yourdomain.com
+SENDER_NAME=HireFlow
 ```
 
 ### Getting API Keys
@@ -1120,6 +1131,290 @@ Final Score = (AI Correctness × 0.7) + (NLP Communication × 0.3)
 - 60-74: Satisfactory
 - 40-59: Needs Improvement
 - 0-39: Poor
+
+---
+
+## 📧 Email System - Complete Guide
+
+### Overview
+
+The HireFlow email system sends automated notifications for interview assignments, reminders, and completions. It uses **Resend API** and supports two modes: **Development** (for testing) and **Production** (for real sending).
+
+### Current Setup: Development Mode ✅
+
+**Your configuration is ready to use on localhost!**
+
+```bash
+EMAIL_DEV_MODE=true
+DEV_EMAIL=somriksur@gmail.com
+```
+
+**What this means:**
+- ✅ Works on localhost immediately
+- ✅ No deployment needed
+- ✅ No domain verification required
+- ✅ All emails redirect to `somriksur@gmail.com` for testing
+- ✅ Perfect for development and testing
+
+### How It Works
+
+#### Development Mode (Current)
+
+```
+Your App (localhost:3000)
+    ↓
+Enter ANY email: candidate@gmail.com
+    ↓
+System redirects to: somriksur@gmail.com
+    ↓
+Email arrives at: somriksur@gmail.com ✅
+```
+
+**Subject line shows original recipient:**
+```
+[DEV - candidate@gmail.com] New Interview: Senior Developer Position
+```
+
+#### Testing the Email System
+
+```bash
+# Run test script
+node test-universal-email.js
+
+# Enter any email
+> anyone@gmail.com
+
+# Email arrives at somriksur@gmail.com ✅
+```
+
+### Email Types
+
+The system sends 3 types of automated emails:
+
+#### 1. Interview Assignment Email
+**Sent when:** Recruiter creates and assigns an interview
+
+**Recipient:** Candidate email
+
+**Content:**
+- Interview details (role, questions count, estimated time)
+- Direct link to start interview
+- Professional HTML template
+
+**Example:**
+```
+Subject: New Interview: Senior Developer Position
+To: candidate@gmail.com (→ somriksur@gmail.com in dev mode)
+
+Hi John Doe,
+
+You've been assigned a new interview for the Senior Developer position!
+
+Interview Details:
+- Role: Senior Developer
+- Questions: 5
+- Estimated Time: 25 minutes
+
+[Start Interview Button]
+```
+
+#### 2. Interview Completion Email
+**Sent when:** Candidate submits interview
+
+**Recipient:** Recruiter email
+
+**Content:**
+- Candidate name and role
+- Overall score
+- Link to view detailed feedback
+
+#### 3. Feedback Ready Email
+**Sent when:** Interview is evaluated and feedback is ready
+
+**Recipient:** Candidate email
+
+**Content:**
+- Overall score
+- Link to view detailed feedback
+- Encouragement message
+
+### Using Email in Your Application
+
+#### Send Interview Assignment
+
+```typescript
+import { notifyInterviewAssigned } from '@/lib/email/notifications';
+
+// In your interview creation code
+await notifyInterviewAssigned(
+  'candidate@gmail.com',      // Any email (redirects to DEV_EMAIL in dev mode)
+  'John Doe',                 // Candidate name
+  'Senior Developer',         // Role
+  5,                          // Number of questions
+  'interview-id-123'          // Interview ID
+);
+
+// Email sent! Check somriksur@gmail.com inbox
+```
+
+#### Send Interview Completion
+
+```typescript
+import { notifyInterviewCompleted } from '@/lib/email/notifications';
+
+await notifyInterviewCompleted(
+  'recruiter@company.com',    // Recruiter email
+  'Jane Smith',               // Recruiter name
+  'John Doe',                 // Candidate name
+  'Senior Developer',         // Role
+  85,                         // Score
+  'interview-id-123'          // Interview ID
+);
+```
+
+#### Send Feedback Ready
+
+```typescript
+import { notifyFeedbackReady } from '@/lib/email/notifications';
+
+await notifyFeedbackReady(
+  'candidate@gmail.com',      // Candidate email
+  'John Doe',                 // Candidate name
+  'Senior Developer',         // Role
+  85,                         // Score
+  'interview-id-123'          // Interview ID
+);
+```
+
+### Email System Files
+
+```
+lib/email/
+├── config.ts              # Configuration management
+├── errors.ts              # Error handling and codes
+├── validation.ts          # Email validation
+├── send-email.ts          # Core sending logic
+└── notifications.ts       # Notification helpers
+
+test-universal-email.js    # Test script
+```
+
+### Configuration Options
+
+#### Development Mode (Current - Recommended)
+
+```bash
+# .env.local
+EMAIL_DEV_MODE=true
+DEV_EMAIL=somriksur@gmail.com
+```
+
+**Perfect for:**
+- ✅ Development and testing
+- ✅ Building your MVP
+- ✅ Demos and presentations
+- ✅ No cost, no setup
+
+**How it works:**
+- All emails redirect to DEV_EMAIL
+- Subject shows original recipient
+- Safe testing without affecting users
+
+#### Production Mode (Optional - Requires Domain)
+
+```bash
+# .env.local
+EMAIL_DEV_MODE=false
+VERIFIED_DOMAIN=yourdomain.com
+SENDER_EMAIL=noreply@yourdomain.com
+```
+
+**Requirements:**
+- Verified domain with Resend
+- DNS configuration
+- 10-15 minutes setup time
+
+**When to use:**
+- Sending to real user emails
+- Production deployment
+- After thorough testing
+
+### Troubleshooting
+
+#### Email Not Arriving?
+
+1. **Check the correct inbox:**
+   - In dev mode: Check `somriksur@gmail.com`
+   - NOT the email you entered in the app
+
+2. **Check spam folder:**
+   - Gmail might filter test emails
+   - Look in spam/junk folder
+
+3. **Wait 2-3 minutes:**
+   - Email delivery can take time
+   - Be patient
+
+4. **Check Resend dashboard:**
+   - Go to https://resend.com/emails
+   - Find your email by ID
+   - See delivery status
+
+#### Want to Change Dev Email?
+
+Update `.env.local`:
+```bash
+DEV_EMAIL=your-other-email@gmail.com
+```
+
+Restart your app:
+```bash
+npm run dev
+```
+
+#### Want to Send to Real Addresses?
+
+**Option 1: Keep Dev Mode (Recommended)**
+- Continue using dev mode for testing
+- Perfect for development
+- No setup needed
+
+**Option 2: Verify a Domain**
+- Get a domain (free or paid)
+- Verify with Resend
+- Takes 10-15 minutes
+- Then can send to any email
+
+### Key Points
+
+✅ **Email system works on localhost** - No deployment needed
+✅ **Development mode is perfect for testing** - All emails in one inbox
+✅ **No paid services required** - Free Resend tier works great
+✅ **No domain needed for dev mode** - Start using immediately
+✅ **See original recipient** - Subject line shows who it was meant for
+
+### Testing Checklist
+
+- [ ] Run test script: `node test-universal-email.js`
+- [ ] Enter any email address
+- [ ] Check `somriksur@gmail.com` inbox
+- [ ] Verify email arrived
+- [ ] Check subject shows original recipient
+- [ ] Test in your app
+- [ ] Create interview and assign to any email
+- [ ] Verify email sent successfully
+
+### Summary
+
+**Your email system is ready to use!**
+
+- ✅ Works on localhost
+- ✅ No deployment needed
+- ✅ No paid services required
+- ✅ No domain verification needed
+- ✅ All emails go to `somriksur@gmail.com` for testing
+
+**Just use it as is!** Perfect for development and testing. 🎉
 
 ---
 
