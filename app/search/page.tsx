@@ -11,7 +11,7 @@ export default function SearchPage() {
     const router = useRouter();
     const query = searchParams.get("q") || "";
 
-    const [results, setResults] = useState<any[]>([]);
+    const [results, setResults] = useState<Array<{ type: string; item: Record<string, unknown> }>>([]);
     const [loading, setLoading] = useState(false);
     const [searchHistory, setSearchHistory] = useState<string[]>([]);
     const [searchInput, setSearchInput] = useState(query);
@@ -26,7 +26,6 @@ export default function SearchPage() {
             saveSearchHistory(query);
             setSearchHistory(getSearchHistory());
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
     const performSearch = async () => {
@@ -170,22 +169,22 @@ export default function SearchPage() {
                                                             ? "bg-green-500/20 text-green-500"
                                                             : "bg-yellow-500/20 text-yellow-500"
                                                     }`}>
-                                                        {result.item.status}
+                                                        {String(result.item.status || '')}
                                                     </span>
                                                 </div>
                                                 <h3 className="text-lg font-semibold">
-                                                    {result.item.role}
+                                                    {String(result.item.role || '')}
                                                 </h3>
                                                 <p className="text-sm text-gray-500">
-                                                    {result.item.candidateName || result.item.candidateEmail}
+                                                    {String(result.item.candidateName || result.item.candidateEmail || '')}
                                                 </p>
                                                 <div className="flex flex-wrap gap-1">
-                                                    {result.item.techstack.map((tech: string, i: number) => (
+                                                    {Array.isArray(result.item.techstack) && result.item.techstack.map((tech: unknown, i: number) => (
                                                         <span
                                                             key={i}
                                                             className="px-2 py-1 bg-primary/20 rounded text-xs"
                                                         >
-                                                            {tech}
+                                                            {String(tech)}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -199,14 +198,14 @@ export default function SearchPage() {
                                                         Feedback
                                                     </span>
                                                     <span className="text-2xl font-bold text-primary">
-                                                        {result.item.totalScore}/100
+                                                        {String(result.item.totalScore || 0)}/100
                                                     </span>
                                                 </div>
                                                 <h3 className="text-lg font-semibold">
-                                                    {result.item.candidateName}
+                                                    {String(result.item.candidateName || '')}
                                                 </h3>
                                                 <p className="text-sm text-gray-500">
-                                                    {result.item.role}
+                                                    {String(result.item.role || '')}
                                                 </p>
                                             </div>
                                         </Link>

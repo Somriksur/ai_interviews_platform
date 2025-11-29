@@ -140,7 +140,7 @@ Respond in this EXACT JSON format (no markdown, no code blocks):
 export const evaluateAnswerWithGemini = evaluateAnswerWithGroq;
 
 // Fallback evaluation when Gemini is not available
-function fallbackEvaluation(question: string, answer: string): AnswerEvaluation {
+function fallbackEvaluation(_question: string, answer: string): AnswerEvaluation {
     const wordCount = answer.trim().split(/\s+/).length;
     
     // Very basic evaluation

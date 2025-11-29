@@ -38,13 +38,15 @@ export async function POST(request: NextRequest) {
 
         // Send email notification to candidate
         const candidateName = candidateEmail.split("@")[0]; // Extract name from email
-        await notifyInterviewAssigned(
-            candidateEmail,
-            candidateName,
-            role,
-            questions.length,
-            result.interviewId
-        );
+        if (result.interviewId) {
+            await notifyInterviewAssigned(
+                candidateEmail,
+                candidateName,
+                role,
+                questions.length,
+                result.interviewId
+            );
+        }
 
         return NextResponse.json({
             success: true,

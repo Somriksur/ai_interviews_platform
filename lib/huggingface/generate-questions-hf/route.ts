@@ -11,7 +11,6 @@ import { getCurrentUser } from "@/lib/actions/auth.action";
  */
 
 // Hugging Face Model Configuration
-const HF_MODEL = process.env.HUGGINGFACE_CUSTOM_MODEL || "mistralai/Mistral-7B-Instruct-v0.2";
 const HF_ENDPOINT = process.env.HUGGINGFACE_ENDPOINT_URL; // For custom deployed endpoints
 
 interface QuestionGenerationParams {

@@ -172,7 +172,7 @@ export default function RichTextEditor({
                         }`}
                         title="Quote"
                     >
-                        " "
+                        &quot; &quot;
                     </button>
 
                     <div className="w-px h-6 bg-border mx-1" />

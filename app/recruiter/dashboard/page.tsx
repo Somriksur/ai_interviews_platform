@@ -50,9 +50,9 @@ export default async function RecruiterDashboard() {
                     <p className="text-xs text-gray-500 mt-1">All time</p>
                 </div>
                 <div className="card p-6 bg-yellow-50 dark:bg-yellow-900/20">
-                    <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400">Pending</h3>
+                    <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400">Assigned</h3>
                     <p className="text-3xl font-bold mt-2 text-yellow-600">
-                        {interviews.filter((i: Interview) => i.status === "pending").length}
+                        {interviews.filter((i: Interview) => i.status === "assigned" || i.status === "draft").length}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">Not started</p>
                 </div>

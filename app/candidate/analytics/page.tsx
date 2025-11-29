@@ -8,7 +8,7 @@ import { calculateCandidateAnalytics, compareToPeers } from "@/lib/analytics/can
 
 export default function CandidateAnalyticsPage() {
     const router = useRouter();
-    const [analytics, setAnalytics] = useState<any>(null);
+    const [analytics, setAnalytics] = useState<ReturnType<typeof calculateCandidateAnalytics> | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
