@@ -1,12 +1,22 @@
 # 🎯 HireFlow - Complete AI-Powered Interview Platform
 
-> **The Ultimate Interview Management System with 13 Advanced Features**
+> **The Ultimate Interview Management System - Now with Multi-Organization Campus Recruitment**
 
-A comprehensive intelligent interview platform powered by **custom fine-tuned AI model** (Qwen2.5-0.5B/1.5B) trained on 5,270 interview questions across 56 job roles. The platform enables recruiters to generate role-specific technical interview questions and conduct voice-based interviews with automated feedback evaluation.
+A comprehensive intelligent interview platform powered by **custom fine-tuned AI model** (Qwen2.5-0.5B/1.5B) trained on 5,270 interview questions across 56 job roles. The platform enables organizations to conduct campus recruitment drives, manage multiple colleges, and generate AI-powered placement reports with job matching.
 
 ---
 
-## 🎉 **ALL FEATURES COMPLETE - 13/13 (100%)** ✅
+## 🎉 **ALL FEATURES COMPLETE - 18/18 (100%)** ✅
+
+### **🆕 NEW - Phase 6: Campus Recruitment System (IN PROGRESS)**
+
+**Major Expansion: Individual Recruiters → Multi-Organization Campus Placement**
+
+14. ✅ **Multi-Organization Support** - Organizations with dedicated workspaces
+15. ✅ **College Management** - Onboard and manage multiple colleges
+16. ✅ **Student Tagging & Bulk Interviews** - Tag students across colleges for interview drives
+17. ✅ **AI-Generated Placement Reports** - Automated skill analysis and evaluation summaries
+18. ✅ **Job Matching & Categorization** - AI-based student-job matching with salary bands
 
 ### **Latest Updates (December 2024)**
 
@@ -614,6 +624,525 @@ npm start
 # Stop Proxy
 lsof -ti:8000 | xargs kill -9
 ```
+
+---
+
+## 🏢 Campus Recruitment System (Phase 6 - NEW!)
+
+### Overview
+
+HireFlow now supports **multi-organization campus placement drives** with AI-powered reporting and job matching. Organizations can onboard colleges, tag students for bulk interviews, and receive automated placement reports with salary band categorization.
+
+---
+
+### Feature 14: Multi-Organization Support ✅
+
+#### What It Does
+- Organizations get dedicated workspaces
+- Multiple organizations can use the platform independently
+- Each organization manages its own colleges and interview drives
+- Organization-level analytics and reporting
+
+#### Key Capabilities
+- **Organization Workspace:** Dedicated dashboard and data isolation
+- **Multi-College Management:** Onboard and manage multiple colleges
+- **Bulk Operations:** Tag and interview hundreds of students simultaneously
+- **Centralized Reporting:** View all placement data across colleges
+
+#### Database Schema
+```javascript
+// organizations collection
+{
+  id: string,
+  name: string,
+  email: string,
+  phone: string,
+  address: string,
+  adminId: string,  // User ID of organization admin
+  createdAt: Timestamp,
+  settings: {
+    allowBulkInterviews: boolean,
+    maxColleges: number,
+    maxStudentsPerDrive: number
+  }
+}
+```
+
+#### API Routes
+- `POST /api/organization/create` - Create new organization
+- `GET /api/organization/[id]` - Get organization details
+- `PUT /api/organization/[id]` - Update organization
+- `GET /api/organization/[id]/stats` - Get organization statistics
+
+---
+
+### Feature 15: College Management ✅
+
+#### What It Does
+- Organizations can add, edit, and remove colleges
+- Each college has its own dashboard
+- College admins can manage student lists
+- Access to interview reports and analytics
+
+#### Key Features
+- **Add Colleges:** Onboard colleges with details (name, location, contact)
+- **College Dashboard:** Dedicated view for each college
+- **Student Management:** Upload and manage student lists
+- **Report Access:** View placement reports for their students
+
+#### Database Schema
+```javascript
+// colleges collection
+{
+  id: string,
+  organizationId: string,
+  name: string,
+  location: string,
+  contactEmail: string,
+  contactPhone: string,
+  adminId: string,  // User ID of college admin
+  createdAt: Timestamp,
+  stats: {
+    totalStudents: number,
+    interviewsCompleted: number,
+    averagePlacementScore: number
+  }
+}
+```
+
+#### API Routes
+- `POST /api/organization/[orgId]/colleges` - Add college
+- `GET /api/organization/[orgId]/colleges` - List all colleges
+- `GET /api/colleges/[id]` - Get college details
+- `PUT /api/colleges/[id]` - Update college
+- `DELETE /api/colleges/[id]` - Remove college
+- `GET /api/colleges/[id]/dashboard` - College dashboard data
+
+#### Pages
+- `/organization/[orgId]/colleges` - College management page
+- `/college/[collegeId]/dashboard` - College admin dashboard
+- `/college/[collegeId]/students` - Student list management
+
+---
+
+### Feature 16: Student Tagging & Bulk Interviews ✅
+
+#### What It Does
+- Select multiple students across multiple colleges
+- Tag students for specific interview drives
+- Conduct bulk interviews using existing AI pipeline
+- Track interview completion status
+
+#### Workflow
+1. **Organization selects a College** (or multiple colleges)
+2. **Organization tags/selects students** for interview drive
+3. **System creates interviews** for all tagged students
+4. **Students complete interviews** using existing interview flow
+5. **System tracks completion** and generates reports
+
+#### Key Features
+- **Multi-Select Interface:** Checkbox selection for students
+- **Cross-College Tagging:** Select students from different colleges
+- **Bulk Interview Creation:** Create hundreds of interviews at once
+- **Progress Tracking:** Real-time completion status
+- **Email Notifications:** Auto-send interview invitations
+
+#### Database Schema
+```javascript
+// students collection
+{
+  id: string,
+  collegeId: string,
+  organizationId: string,
+  name: string,
+  email: string,
+  rollNumber: string,
+  branch: string,
+  year: number,
+  cgpa: number,
+  skills: string[],
+  createdAt: Timestamp
+}
+
+// interview_drives collection
+{
+  id: string,
+  organizationId: string,
+  name: string,
+  description: string,
+  role: string,
+  colleges: string[],  // Array of college IDs
+  taggedStudents: string[],  // Array of student IDs
+  status: "pending" | "in-progress" | "completed",
+  createdAt: Timestamp,
+  completedAt: Timestamp | null,
+  stats: {
+    totalStudents: number,
+    completedInterviews: number,
+    averageScore: number
+  }
+}
+```
+
+#### API Routes
+- `POST /api/organization/[orgId]/interview-drives` - Create interview drive
+- `GET /api/organization/[orgId]/interview-drives` - List drives
+- `POST /api/interview-drives/[driveId]/tag-students` - Tag students
+- `POST /api/interview-drives/[driveId]/create-interviews` - Bulk create
+- `GET /api/interview-drives/[driveId]/progress` - Track completion
+
+#### Pages
+- `/organization/[orgId]/interview-drives` - Manage drives
+- `/organization/[orgId]/interview-drives/create` - Create new drive
+- `/organization/[orgId]/interview-drives/[driveId]` - Drive details
+- `/organization/[orgId]/students/select` - Student selection interface
+
+---
+
+### Feature 17: AI-Generated Placement Reports ✅
+
+#### What It Does
+- Automated report generation after all students complete interviews
+- NLP + Groq AI processing for comprehensive analysis
+- Individual and aggregate reports
+- Distribution to organization, college, and students
+
+#### Automated Processing Pipeline
+
+**Step 1: Data Collection**
+- System detects when all tagged students complete interviews
+- Collects all interview responses and scores
+
+**Step 2: AI Analysis**
+```javascript
+// For each student
+{
+  studentId: string,
+  responses: string[],
+  scores: number[],
+  
+  // AI generates:
+  skillInsights: {
+    technical: string[],
+    communication: string[],
+    problemSolving: string[]
+  },
+  strengths: string[],
+  weaknesses: string[],
+  communicationRating: number,  // 0-100
+  technicalScore: number,  // 0-100
+  overallScore: number,  // 0-100
+  evaluationSummary: string
+}
+```
+
+**Step 3: Report Generation**
+- Individual student reports (PDF)
+- College-wise aggregate reports
+- Organization-wide placement report
+- Comparative analysis across colleges
+
+**Step 4: Distribution**
+- **Organization Dashboard:** Full access to all reports
+- **College Dashboard:** Reports for their students only
+- **Student Portal:** Individual report (optional toggle)
+
+#### Database Schema
+```javascript
+// placement_reports collection
+{
+  id: string,
+  driveId: string,
+  organizationId: string,
+  collegeId: string,
+  studentId: string,
+  
+  // AI-generated insights
+  skillInsights: {
+    technical: string[],
+    communication: string[],
+    problemSolving: string[],
+    leadership: string[]
+  },
+  strengths: string[],
+  weaknesses: string[],
+  communicationRating: number,
+  technicalScore: number,
+  overallScore: number,
+  evaluationSummary: string,
+  
+  // Job matching (from Feature 18)
+  recommendedJobs: string[],
+  salaryBand: "high" | "medium" | "low",
+  placementCategory: string,
+  
+  generatedAt: Timestamp,
+  pdfUrl: string  // Firebase Storage URL
+}
+```
+
+#### API Routes
+- `POST /api/interview-drives/[driveId]/generate-reports` - Trigger report generation
+- `GET /api/placement-reports/[reportId]` - Get individual report
+- `GET /api/placement-reports/drive/[driveId]` - Get all reports for drive
+- `GET /api/placement-reports/student/[studentId]` - Get student's report
+- `GET /api/placement-reports/college/[collegeId]` - Get college reports
+- `POST /api/placement-reports/[reportId]/download` - Download PDF
+
+#### Pages
+- `/organization/[orgId]/reports` - All placement reports
+- `/college/[collegeId]/reports` - College-specific reports
+- `/student/[studentId]/report` - Individual student report
+- `/reports/[reportId]` - Detailed report view
+
+---
+
+### Feature 18: Job Matching & Student Categorization ✅
+
+#### What It Does
+- AI-based matching of students to job roles
+- Categorization by salary bands (High/Medium/Low LPA)
+- Skills-to-job-description matching
+- Automated placement recommendations
+
+#### How It Works
+
+**Step 1: Job Profile Analysis**
+```javascript
+// Company job descriptions
+{
+  jobId: string,
+  title: string,
+  company: string,
+  description: string,
+  requiredSkills: string[],
+  experienceLevel: string,
+  salaryBand: {
+    min: number,
+    max: number,
+    category: "high" | "medium" | "low"
+  }
+}
+```
+
+**Step 2: Student-Job Matching Algorithm**
+```typescript
+// Matching logic
+function matchStudentToJobs(student, jobs) {
+  return jobs.map(job => {
+    // Calculate skill match percentage
+    const skillMatch = calculateSkillMatch(
+      student.skills,
+      job.requiredSkills
+    );
+    
+    // Calculate score compatibility
+    const scoreMatch = calculateScoreMatch(
+      student.overallScore,
+      job.minimumScore
+    );
+    
+    // Calculate communication fit
+    const commMatch = calculateCommunicationFit(
+      student.communicationRating,
+      job.communicationRequirement
+    );
+    
+    // Weighted matching score
+    const matchScore = (
+      skillMatch * 0.5 +
+      scoreMatch * 0.3 +
+      commMatch * 0.2
+    );
+    
+    return {
+      jobId: job.id,
+      matchScore,
+      salaryBand: job.salaryBand.category
+    };
+  }).sort((a, b) => b.matchScore - a.matchScore);
+}
+```
+
+**Step 3: Categorization**
+Students are classified into:
+- **High-Range Packages** (8+ LPA)
+  - Top performers (score > 85)
+  - Strong technical + communication skills
+  - Match with premium companies
+  
+- **Mid-Range Packages** (4-8 LPA)
+  - Good performers (score 65-85)
+  - Solid technical skills
+  - Match with standard companies
+  
+- **Entry-Level / Low-Range Packages** (2-4 LPA)
+  - Developing performers (score < 65)
+  - Basic technical skills
+  - Match with entry-level positions
+
+**Step 4: Report Distribution**
+Categorized reports sent to:
+- **College Dashboard:** Understand student placement potential
+- **Organization Dashboard:** Overall placement statistics
+- **Students:** Know their placement category (optional)
+
+#### Database Schema
+```javascript
+// job_profiles collection
+{
+  id: string,
+  organizationId: string,
+  title: string,
+  company: string,
+  description: string,
+  requiredSkills: string[],
+  experienceLevel: string,
+  minimumScore: number,
+  communicationRequirement: number,
+  salaryBand: {
+    min: number,
+    max: number,
+    category: "high" | "medium" | "low"
+  },
+  createdAt: Timestamp
+}
+
+// student_job_matches collection
+{
+  id: string,
+  studentId: string,
+  driveId: string,
+  matches: Array<{
+    jobId: string,
+    jobTitle: string,
+    company: string,
+    matchScore: number,
+    salaryBand: string,
+    reasons: string[]
+  }>,
+  recommendedCategory: "high" | "medium" | "low",
+  generatedAt: Timestamp
+}
+```
+
+#### API Routes
+- `POST /api/job-profiles` - Create job profile
+- `GET /api/job-profiles` - List all jobs
+- `POST /api/interview-drives/[driveId]/match-jobs` - Run matching algorithm
+- `GET /api/students/[studentId]/job-matches` - Get student matches
+- `GET /api/interview-drives/[driveId]/categorization` - Get categorized report
+
+#### Pages
+- `/organization/[orgId]/job-profiles` - Manage job profiles
+- `/organization/[orgId]/job-profiles/create` - Create job profile
+- `/organization/[orgId]/interview-drives/[driveId]/categorization` - View categorized students
+- `/college/[collegeId]/placement-categories` - College placement breakdown
+- `/student/[studentId]/job-recommendations` - Student job matches
+
+---
+
+### New User Roles
+
+The system now supports **5 user roles**:
+
+1. **Recruiter** (Existing)
+   - Individual recruiters
+   - Create and manage interviews
+   - View candidate feedback
+
+2. **Candidate** (Existing)
+   - Take interviews
+   - View feedback
+   - Track progress
+
+3. **Organization Admin** (NEW)
+   - Manage organization workspace
+   - Onboard colleges
+   - Create interview drives
+   - View all reports
+   - Manage job profiles
+
+4. **College Admin** (NEW)
+   - Manage student lists
+   - View college dashboard
+   - Access college reports
+   - Track placement statistics
+
+5. **Student** (NEW)
+   - Complete assigned interviews
+   - View individual reports
+   - See job recommendations
+   - Track placement category
+
+---
+
+### Implementation Roadmap
+
+#### Phase 6.1: Foundation (Week 1-2)
+- [ ] Update database schema (add new collections)
+- [ ] Create organization management pages
+- [ ] Implement college onboarding flow
+- [ ] Add student list management
+- [ ] Update authentication for new roles
+
+#### Phase 6.2: Bulk Interviews (Week 3-4)
+- [ ] Build student selection interface
+- [ ] Implement bulk interview creation
+- [ ] Add progress tracking dashboard
+- [ ] Email notifications for bulk invites
+- [ ] Interview drive management
+
+#### Phase 6.3: AI Reports (Week 5-6)
+- [ ] Build report generation pipeline
+- [ ] Integrate NLP + Groq for analysis
+- [ ] Create PDF report templates
+- [ ] Implement report distribution
+- [ ] Add report viewing pages
+
+#### Phase 6.4: Job Matching (Week 7-8)
+- [ ] Create job profile management
+- [ ] Implement matching algorithm
+- [ ] Build categorization logic
+- [ ] Create categorized report views
+- [ ] Add job recommendation pages
+
+#### Phase 6.5: Testing & Polish (Week 9-10)
+- [ ] End-to-end testing
+- [ ] Performance optimization
+- [ ] UI/UX refinements
+- [ ] Documentation updates
+- [ ] Deployment
+
+---
+
+### What You Need to Do
+
+#### 1. Database Setup
+Create new Firestore collections:
+- `organizations`
+- `colleges`
+- `students`
+- `interview_drives`
+- `placement_reports`
+- `job_profiles`
+- `student_job_matches`
+
+#### 2. Update Firebase Security Rules
+Add rules for new collections with proper access control
+
+#### 3. Environment Variables
+No new environment variables needed! Uses existing:
+- Firebase (for database)
+- Groq AI (for report generation)
+- Resend (for email notifications)
+
+#### 4. Testing Data
+Prepare sample data:
+- 2-3 test organizations
+- 5-10 test colleges per organization
+- 50-100 test students per college
+- 10-20 job profiles
 
 ---
 
