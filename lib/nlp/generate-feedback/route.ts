@@ -469,6 +469,7 @@ function extractAnswerKeywords(answer: string): string[] {
 
 
 // Calculate relevance score (ENHANCED with semantic matching)
+// @ts-expect-error - Unused helper function kept for future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _calculateRelevanceEnhanced(
     questionKeywords: string[],
@@ -542,6 +543,7 @@ function addressesQuestionType(answer: string, questionType: string): boolean {
 }
 
 // Calculate technical depth (ENHANCED)
+// @ts-expect-error - Unused helper function kept for future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _calculateTechnicalDepthEnhanced(
     technicalTerms: string[],
@@ -625,6 +627,7 @@ function calculateClarityEnhanced(
 }
 
 // Calculate completeness score (ENHANCED)
+// @ts-expect-error - Unused helper function kept for future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _calculateCompletenessEnhanced(
     wordCount: number,
@@ -976,6 +979,7 @@ function generateConfidenceComment(metrics: any): string {
 }
 
 // Identify strengths
+// @ts-expect-error - Unused helper function kept for future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _identifyStrengths(_analyses: any[], metrics: any): string[] {
     const strengths: string[] = [];
@@ -1013,6 +1017,7 @@ function _identifyStrengths(_analyses: any[], metrics: any): string[] {
 }
 
 // Identify areas for improvement
+// @ts-expect-error - Unused helper function kept for future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _identifyImprovements(_analyses: any[], metrics: any): string[] {
     const improvements: string[] = [];
@@ -1054,6 +1059,7 @@ function _identifyImprovements(_analyses: any[], metrics: any): string[] {
 }
 
 // Generate final assessment
+// @ts-expect-error - Unused helper function kept for future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _generateFinalAssessment(
     _analyses: any[],
@@ -1419,7 +1425,7 @@ function generateTechnicalAssessment(
 
 // Generate comprehensive final assessment
 function generateComprehensiveFinalAssessment(
-    qaAnalyses: any[],
+    _qaAnalyses: any[],
     metrics: any,
     interview: any,
     answeredCount: number,
@@ -1519,7 +1525,7 @@ function generateComprehensiveFinalAssessment(
 // Generate hiring recommendation
 function generateHiringRecommendation(
     totalScore: number,
-    categoryScores: any[],
+    _categoryScores: any[],
     level: string,
     _metrics: any
 ): {
