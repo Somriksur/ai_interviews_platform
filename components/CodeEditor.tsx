@@ -49,7 +49,7 @@ export default function CodeEditor({
     const [selectedLanguage, setSelectedLanguage] = useState(language);
     const [fontSize, setFontSize] = useState(14);
     const { theme } = useTheme();
-    const editorRef = useRef<{ updateOptions: (options: Record<string, unknown>) => void; getAction: (id: string) => { run: () => void } | undefined } | null>(null);
+    const editorRef = useRef<{ updateOptions: (options: Record<string, unknown>) => void; getAction: (id: string) => { run: () => void } | null } | null>(null);
 
     const handleEditorDidMount: OnMount = (editor) => {
         editorRef.current = editor;
