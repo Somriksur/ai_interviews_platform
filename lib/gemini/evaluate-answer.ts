@@ -1,6 +1,7 @@
 /**
  * Groq AI Answer Evaluation (FAST & FREE!)
- * Evaluates the correctness and quality of interview answers
+ * Uses Groq's Llama 3.1 70B model for answer correctness evaluation
+ * Note: File named "gemini" for backward compatibility, but uses Groq API
  */
 
 export interface AnswerEvaluation {
