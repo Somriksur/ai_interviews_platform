@@ -3,42 +3,46 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
-interface Student {
-  id: string;
-  name: string;
-  email: string;
-  rollNumber: string;
-  branch: string;
-  year: number;
-  cgpa: number;
-  skills: string[];
-}
-
-export default function StudentsPage({ params }: { params: { collegeId: string } }) {
-  const [students, setStudents] = useState<Student[]>([]);
+export default function CollegeStudentsPage({ params }: { params: Promise<{ collegeId: string }> }) {
+  const [collegeId, setCollegeId] = useState<string>("");
+  const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     rollNumber: "",
     branch: "",
     year: 1,
-    cgpa: 0,
+    cgpa: "",
     skills: "",
   });
 
   useEffect(() => {
-    fetchStudents();
-  }, [params.collegeId]);
+    const loadParams = async () => {
+      const resolvedParams = await params;
+      setCollegeId(resolvedParams.collegeId);
+    };
+    loadParams();
+  }, [params]);
+
+  useEffect(() => {
+    if (collegeId) {
+      fetchStudents();
+    }
+  }, [collegeId]);
 
   const fetchStudents = async () => {
     try {
-      const response = await fetch(`/api/colleges/${params.collegeId}/students`);
+      const response = await fetch(`/api/colleges/${collegeId}/students`);
       if (response.ok) {
-        const { students } = await response.json();
-        setStudents(students);
+        const data = await response.json();
+        setStudents(data.students || []);
       }
     } catch (error) {
       console.error("Error fetching students:", error);
@@ -49,37 +53,119 @@ export default function StudentsPage({ params }: { params: { collegeId: string }
 
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
 
     try {
-      const response = await fetch(`/api/colleges/${params.collegeId}/students`, {
+      const response = await fetch(`/api/colleges/${collegeId}/students`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          skills: formData.skills.split(",").map((s) => s.trim()),
-          organizationId: "org-id", // This should come from college data
+          cgpa: parseFloat(formData.cgpa as string) || 0,
+          skills: formData.skills.split(",").map((s) => s.trim()).filter(Boolean),
         }),
       });
 
       if (response.ok) {
-        alert("✅ Student added successfully!");
-        setShowAddForm(false);
+        toast.success("Student added successfully!");
+        setShowAddModal(false);
         setFormData({
           name: "",
           email: "",
           rollNumber: "",
           branch: "",
           year: 1,
-          cgpa: 0,
+          cgpa: "",
           skills: "",
         });
         fetchStudents();
       } else {
-        alert("❌ Failed to add student");
+        const data = await response.json();
+        toast.error(data.error || "Failed to add student");
       }
     } catch (error) {
       console.error("Error adding student:", error);
-      alert("❌ An error occurred");
+      toast.error("Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditStudent = (student: any) => {
+    setEditingStudent(student);
+    setFormData({
+      name: student.name,
+      email: student.email,
+      rollNumber: student.rollNumber,
+      branch: student.branch,
+      year: student.year,
+      cgpa: student.cgpa.toString(),
+      skills: Array.isArray(student.skills) ? student.skills.join(", ") : "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/students/${editingStudent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          cgpa: parseFloat(formData.cgpa as string) || 0,
+          skills: formData.skills.split(",").map((s) => s.trim()).filter(Boolean),
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Student updated successfully!");
+        setShowEditModal(false);
+        setEditingStudent(null);
+        setFormData({
+          name: "",
+          email: "",
+          rollNumber: "",
+          branch: "",
+          year: 1,
+          cgpa: "",
+          skills: "",
+        });
+        fetchStudents();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to update student");
+      }
+    } catch (error) {
+      console.error("Error updating student:", error);
+      toast.error("Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteStudent = async (studentId: string, studentName: string) => {
+    if (!confirm(`Are you sure you want to delete ${studentName}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/students/${studentId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast.success("Student deleted successfully!");
+        fetchStudents();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to delete student");
+      }
+    } catch (error) {
+      console.error("Error deleting student:", error);
+      toast.error("Something went wrong");
     }
   };
 
@@ -94,187 +180,337 @@ export default function StudentsPage({ params }: { params: { collegeId: string }
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <Link
-              href={`/college/${params.collegeId}/dashboard`}
-              className="text-blue-600 hover:text-blue-700 mb-2 inline-block"
-            >
-              ← Back to Dashboard
-            </Link>
-            <h1 className="text-3xl font-bold">Manage Students</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Add and manage student list for your college
-            </p>
-          </div>
-          <Button onClick={() => setShowAddForm(true)}>+ Add Student</Button>
+        <div className="mb-8">
+          <Link
+            href={`/college/${collegeId}/dashboard`}
+            className="text-blue-600 hover:text-blue-700 mb-2 inline-block"
+          >
+            ← Back to Dashboard
+          </Link>
+          <h1 className="text-3xl font-bold mb-2">Students</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Manage your college students
+          </p>
         </div>
 
-        {/* Add Student Form */}
-        {showAddForm && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4">Add New Student</h2>
-            <form onSubmit={handleAddStudent} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Email *</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Roll Number *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.rollNumber}
-                  onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Branch</label>
-                <input
-                  type="text"
-                  value={formData.branch}
-                  onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  placeholder="e.g., Computer Science"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Year</label>
-                <select
-                  value={formData.year}
-                  onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <option value={1}>1st Year</option>
-                  <option value={2}>2nd Year</option>
-                  <option value={3}>3rd Year</option>
-                  <option value={4}>4th Year</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">CGPA</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="10"
-                  value={formData.cgpa}
-                  onChange={(e) => setFormData({ ...formData, cgpa: parseFloat(e.target.value) })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-2">
-                  Skills (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={formData.skills}
-                  onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  placeholder="e.g., JavaScript, Python, React"
-                />
-              </div>
-              <div className="md:col-span-2 flex gap-2">
-                <Button type="submit">Add Student</Button>
-                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">Student List</h2>
+            <Button onClick={() => setShowAddModal(true)}>Add Student</Button>
           </div>
-        )}
 
-        {/* Students List */}
-        {students.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-            <div className="text-6xl mb-4">👨‍🎓</div>
-            <h3 className="text-xl font-semibold mb-2">No Students Yet</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Start by adding your first student
-            </p>
-            <Button onClick={() => setShowAddForm(true)}>+ Add Student</Button>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          {students.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">👨‍🎓</div>
+              <h3 className="text-xl font-semibold mb-2">No students yet</h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Start by adding students to your college
+              </p>
+              <Button onClick={() => setShowAddModal(true)}>Add Your First Student</Button>
+            </div>
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Roll Number
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Branch
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Year
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      CGPA
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Skills
-                    </th>
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3">Name</th>
+                    <th className="text-left p-3">Email</th>
+                    <th className="text-left p-3">Roll Number</th>
+                    <th className="text-left p-3">Branch</th>
+                    <th className="text-left p-3">Year</th>
+                    <th className="text-left p-3">CGPA</th>
+                    <th className="text-right p-3">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody>
                   {students.map((student) => (
-                    <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="font-medium">{student.name}</div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {student.email}
-                          </div>
-                        </div>
+                    <tr key={student.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td 
+                        className="p-3 cursor-pointer text-blue-600 hover:text-blue-700 hover:underline"
+                        onClick={() => window.location.href = `/student/${student.id}/profile`}
+                      >
+                        {student.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.rollNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.branch}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.year}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{student.cgpa.toFixed(2)}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1">
-                          {student.skills.slice(0, 3).map((skill, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                          {student.skills.length > 3 && (
-                            <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 rounded">
-                              +{student.skills.length - 3}
-                            </span>
-                          )}
-                        </div>
+                      <td className="p-3">{student.email}</td>
+                      <td className="p-3">{student.rollNumber}</td>
+                      <td className="p-3">{student.branch}</td>
+                      <td className="p-3">{student.year}</td>
+                      <td className="p-3">{student.cgpa}</td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditStudent(student);
+                          }}
+                          className="text-blue-600 hover:text-blue-700 mr-3"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteStudent(student.id, student.name);
+                          }}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          🗑️ Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+
+        {/* Add Student Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Add New Student</h2>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={handleAddStudent} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full p-3 border rounded-lg bg-background"
+                    placeholder="John Doe"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full p-3 border rounded-lg bg-background"
+                    placeholder="john@example.com"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Roll Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.rollNumber}
+                      onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
+                      className="w-full p-3 border rounded-lg bg-background"
+                      placeholder="CS2021001"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Branch *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.branch}
+                      onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                      className="w-full p-3 border rounded-lg bg-background"
+                      placeholder="Computer Science"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Year *</label>
+                    <select
+                      required
+                      value={formData.year}
+                      onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                      className="w-full p-3 border rounded-lg bg-background"
+                    >
+                      <option value={1}>1st Year</option>
+                      <option value={2}>2nd Year</option>
+                      <option value={3}>3rd Year</option>
+                      <option value={4}>4th Year</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">CGPA *</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="10"
+                      step="0.01"
+                      value={formData.cgpa}
+                      onChange={(e) => setFormData({ ...formData, cgpa: e.target.value })}
+                      className="w-full p-3 border rounded-lg bg-background"
+                      placeholder="8.5"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Skills (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={formData.skills}
+                    onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
+                    className="w-full p-3 border rounded-lg bg-background"
+                    placeholder="JavaScript, React, Node.js"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">Separate skills with commas</p>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <Button type="submit" className="flex-1" disabled={submitting}>
+                    {submitting ? "Adding..." : "Add Student"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="flex-1 bg-gray-500 hover:bg-gray-600"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Student Modal */}
+        {showEditModal && editingStudent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Edit Student</h2>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingStudent(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateStudent} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full p-3 border rounded-lg bg-background"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full p-3 border rounded-lg bg-background"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Roll Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.rollNumber}
+                      onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
+                      className="w-full p-3 border rounded-lg bg-background"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Branch *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.branch}
+                      onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                      className="w-full p-3 border rounded-lg bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Year *</label>
+                    <select
+                      required
+                      value={formData.year}
+                      onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                      className="w-full p-3 border rounded-lg bg-background"
+                    >
+                      <option value={1}>1st Year</option>
+                      <option value={2}>2nd Year</option>
+                      <option value={3}>3rd Year</option>
+                      <option value={4}>4th Year</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">CGPA *</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="10"
+                      step="0.01"
+                      value={formData.cgpa}
+                      onChange={(e) => setFormData({ ...formData, cgpa: e.target.value })}
+                      className="w-full p-3 border rounded-lg bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Skills (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={formData.skills}
+                    onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
+                    className="w-full p-3 border rounded-lg bg-background"
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <Button type="submit" className="flex-1" disabled={submitting}>
+                    {submitting ? "Updating..." : "Update Student"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingStudent(null);
+                    }}
+                    className="flex-1 bg-gray-500 hover:bg-gray-600"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         )}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as adminDb } from "@/firebase/admin";
+import { db as db } from "@/firebase/admin";
 import { cookies } from "next/headers";
 
 export async function GET(request: NextRequest) {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Fetch completed interviews for candidate
-        const interviewsRef = adminDb
+        const interviewsRef = db
             .collection("interviews")
             .where("candidateId", "==", userId)
             .where("status", "==", "completed")

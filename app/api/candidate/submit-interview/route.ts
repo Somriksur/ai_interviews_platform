@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         const feedbackDoc = await db.collection("feedbacks").add({
             interviewId,
             candidateId: user.id,
-            recruiterId: interview.recruiterId,
+            organizationId: interview.organizationId,
             ...feedback,
             transcript,
             createdAt: new Date().toISOString(),

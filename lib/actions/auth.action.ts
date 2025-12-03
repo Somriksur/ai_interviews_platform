@@ -30,6 +30,14 @@ export async function signUp(params: SignUpParams) {
     try {
         console.log("Creating user:", { uid, name, email, role });
         
+        // Validate role - organization, college, and student allowed
+        if (role !== "organization" && role !== "college" && role !== "student" && role !== "candidate") {
+            return {
+                success: false,
+                message: "Invalid role. Please select Organization, College, or Student.",
+            };
+        }
+        
         const userRecord = await db.collection("users").doc(uid).get();
         if (userRecord.exists) {
             console.log("User already exists");
@@ -42,7 +50,7 @@ export async function signUp(params: SignUpParams) {
         const userData = {
             name,
             email,
-            role: role || "candidate",
+            role,
             createdAt: new Date().toISOString(),
         };
 

@@ -31,7 +31,7 @@ const authFormSchema = (type: FormType) =>
         password: z.string().min(6, "Password must be at least 6 characters"),
         role:
             type === "sign-up"
-                ? z.enum(["recruiter", "candidate"])
+                ? z.enum(["organization", "college", "student"])
                 : z.string().optional(),
     });
 
@@ -47,7 +47,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
             name: "",
             email: "",
             password: "",
-            role: "candidate",
+            role: "organization",
         },
     });
 
@@ -67,7 +67,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
                     name: name!,
                     email,
                     password,
-                    role: role as "recruiter" | "candidate",
+                    role: role as "organization" | "college" | "student",
                 });
 
                 if (!result.success) {
@@ -76,7 +76,9 @@ const AuthForm = ({ type }: { type: FormType }) => {
                 }
 
                 toast.success("Account created successfully. Please sign in.");
-                router.push("/auth/sign-in");
+                
+                // Always redirect to onboarding for organization/college roles
+                router.push("/auth/sign-in?redirect=/onboarding");
             } else {
                 const { email, password } = data;
 
@@ -102,11 +104,8 @@ const AuthForm = ({ type }: { type: FormType }) => {
                 console.log("Sign-in successful, user:", result.user);
                 toast.success("Signed in successfully.");
 
-                // Redirect to the specified URL or default based on user role
-                const defaultRedirect = result.user?.role === "recruiter" 
-                    ? "/recruiter/dashboard" 
-                    : "/candidate/dashboard";
-                
+                // Redirect to onboarding (which will auto-redirect to dashboard if profile exists)
+                const defaultRedirect = "/onboarding";
                 const finalRedirect = redirectUrl || defaultRedirect;
                 
                 console.log("🔄 Redirecting to:", finalRedirect);
@@ -185,8 +184,9 @@ const AuthForm = ({ type }: { type: FormType }) => {
                                         {...form.register("role")}
                                         className="w-full p-3 border rounded-lg bg-background"
                                     >
-                                        <option value="candidate">Candidate (Taking Interviews)</option>
-                                        <option value="recruiter">Recruiter (Creating Interviews)</option>
+                                        <option value="student">Student (Take Interviews)</option>
+                                        <option value="college">College (Student Management)</option>
+                                        <option value="organization">Organization (Campus Recruitment)</option>
                                     </select>
                                 </div>
                             </>

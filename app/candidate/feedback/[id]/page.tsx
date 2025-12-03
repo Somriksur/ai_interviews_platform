@@ -115,7 +115,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                 <p className="text-gray-300 leading-relaxed">{feedback.finalAssessment}</p>
             </div>
 
-            {user.role === "recruiter" && feedback.transcript && (
+            {user.role === "organization" && feedback.transcript && (
                 <div className="card p-6">
                     <h3 className="text-xl font-semibold mb-4">Interview Transcript</h3>
                     <div className="space-y-3 max-h-96 overflow-y-auto">

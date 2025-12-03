@@ -17,11 +17,25 @@ async function Home() {
         return (
             <section className="card-cta text-center">
                 <h2 className="text-xl font-semibold">
-                    Please sign in to view or take interviews.
+                    Welcome to HireFlow - Campus Recruitment Platform
                 </h2>
+                <p className="mt-4 text-gray-600">
+                    Organizations and Colleges: Sign in to manage campus recruitment
+                </p>
                 <Button asChild className="btn-primary mt-4">
-                    <Link href="/sign-in">Sign In</Link>
+                    <Link href="/auth/sign-in">Sign In</Link>
                 </Button>
+            </section>
+        );
+    }
+    
+    // Redirect based on role
+    if (user.role === "organization" || user.role === "college") {
+        return (
+            <section className="card-cta text-center">
+                <h2 className="text-xl font-semibold">
+                    Redirecting to your dashboard...
+                </h2>
             </section>
         );
     }

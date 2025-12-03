@@ -21,7 +21,8 @@ interface Stats {
   completedDrives: number;
 }
 
-export default function OrganizationDashboard({ params }: { params: { orgId: string } }) {
+export default function OrganizationDashboard({ params }: { params: Promise<{ orgId: string }> }) {
+  const [orgId, setOrgId] = useState<string>("");
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [stats, setStats] = useState<Stats>({
     totalColleges: 0,
@@ -30,30 +31,39 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
     completedDrives: 0,
   });
   const [loading, setLoading] = useState(true);
-  // const router = useRouter();
 
   useEffect(() => {
-    fetchOrganizationData();
-  }, [params.orgId]);
+    const loadParams = async () => {
+      const resolvedParams = await params;
+      setOrgId(resolvedParams.orgId);
+    };
+    loadParams();
+  }, [params]);
+
+  useEffect(() => {
+    if (orgId) {
+      fetchOrganizationData();
+    }
+  }, [orgId]);
 
   const fetchOrganizationData = async () => {
     try {
       // Fetch organization details
-      const orgResponse = await fetch(`/api/organization/${params.orgId}`);
+      const orgResponse = await fetch(`/api/organization/${orgId}`);
       if (orgResponse.ok) {
         const orgData = await orgResponse.json();
         setOrganization(orgData);
       }
 
       // Fetch colleges
-      const collegesResponse = await fetch(`/api/organization/${params.orgId}/colleges`);
+      const collegesResponse = await fetch(`/api/organization/${orgId}/colleges`);
       if (collegesResponse.ok) {
         const { colleges } = await collegesResponse.json();
         setStats((prev) => ({ ...prev, totalColleges: colleges.length }));
       }
 
       // Fetch interview drives
-      const drivesResponse = await fetch(`/api/organization/${params.orgId}/interview-drives`);
+      const drivesResponse = await fetch(`/api/organization/${orgId}/interview-drives`);
       if (drivesResponse.ok) {
         const { drives } = await drivesResponse.json();
         setStats((prev) => ({
@@ -61,6 +71,13 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
           totalDrives: drives.length,
           completedDrives: drives.filter((d: any) => d.status === 'completed').length,
         }));
+      }
+
+      // Fetch total students across all colleges
+      const studentsResponse = await fetch(`/api/organization/${orgId}/students`);
+      if (studentsResponse.ok) {
+        const { students } = await studentsResponse.json();
+        setStats((prev) => ({ ...prev, totalStudents: students.length }));
       }
     } catch (error) {
       console.error('Error fetching organization data:', error);
@@ -134,7 +151,7 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Link
-            href={`/organization/${params.orgId}/colleges`}
+            href={`/organization/${orgId}/colleges`}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center gap-4">
@@ -149,7 +166,7 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
           </Link>
 
           <Link
-            href={`/organization/${params.orgId}/interview-drives`}
+            href={`/organization/${orgId}/interview-drives`}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center gap-4">
@@ -164,7 +181,7 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
           </Link>
 
           <Link
-            href={`/organization/${params.orgId}/job-profiles`}
+            href={`/organization/${orgId}/job-profiles`}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center gap-4">
@@ -179,7 +196,7 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
           </Link>
 
           <Link
-            href={`/organization/${params.orgId}/reports`}
+            href={`/organization/${orgId}/reports`}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center gap-4">
@@ -194,7 +211,22 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
           </Link>
 
           <Link
-            href={`/organization/${params.orgId}/students`}
+            href={`/organization/${orgId}/categorization`}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">🎯</div>
+              <div>
+                <h3 className="text-lg font-semibold">Student Categorization</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  View students by LPA category
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href={`/organization/${orgId}/students`}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center gap-4">
@@ -208,20 +240,6 @@ export default function OrganizationDashboard({ params }: { params: { orgId: str
             </div>
           </Link>
 
-          <Link
-            href={`/organization/${params.orgId}/settings`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center gap-4">
-              <div className="text-5xl">⚙️</div>
-              <div>
-                <h3 className="text-lg font-semibold">Settings</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Organization settings and preferences
-                </p>
-              </div>
-            </div>
-          </Link>
         </div>
       </div>
     </div>

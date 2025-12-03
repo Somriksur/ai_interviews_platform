@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
     try {
         // Verify authentication
         const user = await getCurrentUser();
-        if (!user || user.role !== "recruiter") {
+        if (!user || user.role !== "organization") {
             return NextResponse.json(
                 { success: false, error: "Unauthorized" },
                 { status: 401 }

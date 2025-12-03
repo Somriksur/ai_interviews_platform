@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as adminDb } from "@/firebase/admin";
+import { db as db } from "@/firebase/admin";
 
 export async function POST(request: NextRequest) {
     try {
         const event = await request.json();
 
         // Store security event in Firestore
-        await adminDb.collection("security_events").add({
+        await db.collection("security_events").add({
             ...event,
             timestamp: new Date(event.timestamp),
             createdAt: new Date(),
@@ -15,14 +15,14 @@ export async function POST(request: NextRequest) {
         // Check if we need to alert recruiter
         if (event.severity === "high") {
             // Create notification for recruiter
-            const interviewDoc = await adminDb
+            const interviewDoc = await db
                 .collection("interviews")
                 .doc(event.interviewId)
                 .get();
 
             if (interviewDoc.exists) {
                 const interview = interviewDoc.data();
-                await adminDb.collection("notifications").add({
+                await db.collection("notifications").add({
                     userId: interview?.recruiterId,
                     type: "security_alert",
                     title: "Security Alert",

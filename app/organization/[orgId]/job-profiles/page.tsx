@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 interface JobProfile {
@@ -18,10 +19,42 @@ interface JobProfile {
   };
 }
 
-export default function JobProfilesPage({ params }: { params: { orgId: string } }) {
+export default function JobProfilesPage({ params }: { params: Promise<{ orgId: string }> }) {
+  const { orgId } = use(params);
+  const router = useRouter();
   const [jobs, setJobs] = useState<JobProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Check user authorization
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch("/api/auth/me");
+        if (!response.ok) {
+          alert("⚠️ Please log in to access this page.");
+          router.push("/auth/signin");
+          return;
+        }
+
+        const { user } = await response.json();
+        if (user.role !== "organization") {
+          alert("⚠️ Access Denied: This page is only accessible to organization users. You are logged in as a " + user.role + " user.");
+          router.push("/");
+          return;
+        }
+
+        setAuthChecked(true);
+      } catch (error) {
+        console.error("Auth check failed:", error);
+        alert("⚠️ Authentication error. Please log in again.");
+        router.push("/auth/signin");
+      }
+    };
+
+    checkAuth();
+  }, [router]);
   const [formData, setFormData] = useState({
     title: "",
     company: "",
@@ -33,13 +66,34 @@ export default function JobProfilesPage({ params }: { params: { orgId: string } 
     salaryCategory: "low",
   });
 
+  // Calculate salary tiers based on min and max salary
+  const calculateSalaryTiers = (min: number, max: number) => {
+    const range = max - min;
+    const lowMax = min + (range * 0.4); // First 40% of range
+    const midMax = min + (range * 0.7); // Next 30% of range
+    // High is remaining 30%
+    
+    return {
+      low: { min, max: lowMax },
+      medium: { min: lowMax, max: midMax },
+      high: { min: midMax, max }
+    };
+  };
+
+  // Update salary when min or max changes
+  const handleSalaryChange = (field: 'salaryMin' | 'salaryMax', value: number) => {
+    setFormData({ ...formData, [field]: value });
+  };
+
   useEffect(() => {
-    fetchJobs();
-  }, [params.orgId]);
+    if (authChecked) {
+      fetchJobs();
+    }
+  }, [orgId, authChecked]);
 
   const fetchJobs = async () => {
     try {
-      const response = await fetch(`/api/job-profiles?organizationId=${params.orgId}`);
+      const response = await fetch(`/api/job-profiles?organizationId=${orgId}`);
       if (response.ok) {
         const { jobs } = await response.json();
         setJobs(jobs);
@@ -59,7 +113,7 @@ export default function JobProfilesPage({ params }: { params: { orgId: string } 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          organizationId: params.orgId,
+          organizationId: orgId,
           title: formData.title,
           company: formData.company,
           description: formData.description,
@@ -76,19 +130,30 @@ export default function JobProfilesPage({ params }: { params: { orgId: string } 
       });
 
       if (response.ok) {
-        alert("✅ Job profile added successfully!");
-        setShowAddForm(false);
-        setFormData({
-          title: "",
-          company: "",
-          description: "",
-          requiredSkills: "",
-          minimumScore: 60,
-          salaryMin: 300000,
-          salaryMax: 500000,
-          salaryCategory: "low",
-        });
-        fetchJobs();
+        const data = await response.json();
+        const jobId = data.id || data.jobId || data.jobPostingId;
+        
+        alert("✅ Job profile created! Now tag colleges for this job.");
+        
+        // Redirect to tag colleges page - this is required for notifications
+        if (jobId) {
+          router.push(`/organization/${orgId}/tag-colleges?jobId=${jobId}`);
+        } else {
+          // Fallback if no ID returned
+          alert("⚠️ Job created but couldn't get ID. Please tag colleges manually.");
+          setShowAddForm(false);
+          setFormData({
+            title: "",
+            company: "",
+            description: "",
+            requiredSkills: "",
+            minimumScore: 60,
+            salaryMin: 300000,
+            salaryMax: 500000,
+            salaryCategory: "low",
+          });
+          fetchJobs();
+        }
       } else {
         alert("❌ Failed to add job profile");
       }
@@ -98,11 +163,34 @@ export default function JobProfilesPage({ params }: { params: { orgId: string } 
     }
   };
 
+  const handleDeleteJob = async (jobId: string, jobTitle: string) => {
+    if (!confirm(`Are you sure you want to delete "${jobTitle}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/job-profiles/${jobId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        alert("✅ Job profile deleted successfully!");
+        fetchJobs(); // Refresh the list
+      } else {
+        alert("❌ Failed to delete job profile");
+      }
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      alert("❌ An error occurred");
+    }
+  };
+
   const formatSalary = (amount: number) => {
     return `₹${(amount / 100000).toFixed(1)}L`;
   };
 
-  if (loading) {
+  // Show loading while checking auth or fetching data
+  if (!authChecked || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin text-4xl">⏳</div>
@@ -117,7 +205,7 @@ export default function JobProfilesPage({ params }: { params: { orgId: string } 
         <div className="flex items-center justify-between mb-8">
           <div>
             <Link
-              href={`/organization/${params.orgId}/dashboard`}
+              href={`/organization/${orgId}/dashboard`}
               className="text-blue-600 hover:text-blue-700 mb-2 inline-block"
             >
               ← Back to Dashboard
@@ -178,50 +266,74 @@ export default function JobProfilesPage({ params }: { params: { orgId: string } 
                   placeholder="e.g., JavaScript, React, Node.js"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Minimum Score</label>
-                <input
-                  type="number"
-                  value={formData.minimumScore}
-                  onChange={(e) =>
-                    setFormData({ ...formData, minimumScore: parseInt(e.target.value) })
-                  }
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  min="0"
-                  max="100"
-                />
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Salary Range</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Minimum (₹)</label>
+                    <input
+                      type="number"
+                      value={formData.salaryMin}
+                      onChange={(e) => handleSalaryChange('salaryMin', parseInt(e.target.value) || 0)}
+                      className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                      step="100000"
+                      placeholder="e.g., 500000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Maximum (₹)</label>
+                    <input
+                      type="number"
+                      value={formData.salaryMax}
+                      onChange={(e) => handleSalaryChange('salaryMax', parseInt(e.target.value) || 0)}
+                      className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                      step="100000"
+                      placeholder="e.g., 1000000"
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Salary Category</label>
-                <select
-                  value={formData.salaryCategory}
-                  onChange={(e) => setFormData({ ...formData, salaryCategory: e.target.value })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <option value="low">Entry Level (2-4 LPA)</option>
-                  <option value="medium">Mid Range (4-8 LPA)</option>
-                  <option value="high">High Range (8+ LPA)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Salary Min (₹)</label>
-                <input
-                  type="number"
-                  value={formData.salaryMin}
-                  onChange={(e) => setFormData({ ...formData, salaryMin: parseInt(e.target.value) })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  step="100000"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Salary Max (₹)</label>
-                <input
-                  type="number"
-                  value={formData.salaryMax}
-                  onChange={(e) => setFormData({ ...formData, salaryMax: parseInt(e.target.value) })}
-                  className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  step="100000"
-                />
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Salary Tiers (Auto-calculated for Student Categorization)</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {(() => {
+                    const tiers = calculateSalaryTiers(formData.salaryMin, formData.salaryMax);
+                    return (
+                      <>
+                        <div className="p-3 border-2 border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950">
+                          <div className="text-center">
+                            <div className="text-2xl mb-1">💼</div>
+                            <div className="font-semibold text-sm mb-1">Low Tier</div>
+                            <div className="text-blue-600 dark:text-blue-400 font-bold">
+                              {formatSalary(tiers.low.min)} - {formatSalary(tiers.low.max)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-3 border-2 border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-950">
+                          <div className="text-center">
+                            <div className="text-2xl mb-1">💰</div>
+                            <div className="font-semibold text-sm mb-1">Mid Tier</div>
+                            <div className="text-green-600 dark:text-green-400 font-bold">
+                              {formatSalary(tiers.medium.min)} - {formatSalary(tiers.medium.max)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-3 border-2 border-purple-200 dark:border-purple-800 rounded-lg bg-purple-50 dark:bg-purple-950">
+                          <div className="text-center">
+                            <div className="text-2xl mb-1">🌟</div>
+                            <div className="font-semibold text-sm mb-1">High Tier</div>
+                            <div className="text-purple-600 dark:text-purple-400 font-bold">
+                              {formatSalary(tiers.high.min)} - {formatSalary(tiers.high.max)}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Students will be categorized into these tiers based on their interview performance
+                </p>
               </div>
               <div className="md:col-span-2 flex gap-2">
                 <Button type="submit">Add Job Profile</Button>
@@ -280,9 +392,33 @@ export default function JobProfilesPage({ params }: { params: { orgId: string } 
                       {formatSalary(job.salaryBand.min)} - {formatSalary(job.salaryBand.max)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-4">
                     <span className="text-sm text-gray-600 dark:text-gray-400">Min Score:</span>
                     <span className="font-semibold">{job.minimumScore}</span>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="space-y-2">
+                    <Link
+                      href={`/organization/${orgId}/interview-drives/create?jobId=${job.id}`}
+                      className="block w-full"
+                    >
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="w-full"
+                      >
+                        📋 Create Interview Drive
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteJob(job.id, job.title)}
+                      className="w-full"
+                    >
+                      🗑️ Delete Job
+                    </Button>
                   </div>
                 </div>
               </div>

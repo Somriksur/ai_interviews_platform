@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db as adminDb } from '@/firebase/admin';
+import { db as db } from '@/firebase/admin';
 import Groq from 'groq-sdk';
 
 const groq = new Groq({
@@ -13,7 +13,7 @@ export async function POST(
   try {
     const { driveId } = await params;
     // Get drive details
-    const driveDoc = await adminDb.collection('interview_drives').doc(driveId).get();
+    const driveDoc = await db.collection('interview_drives').doc(driveId).get();
     
     if (!driveDoc.exists) {
       return NextResponse.json(
@@ -25,7 +25,7 @@ export async function POST(
     const driveData = driveDoc.data();
 
     // Get all completed interviews for this drive
-    const interviewsSnapshot = await adminDb
+    const interviewsSnapshot = await db
       .collection('interviews')
       .where('driveId', '==', driveId)
       .where('status', '==', 'completed')
@@ -47,12 +47,11 @@ export async function POST(
       // Generate AI insights using Groq
       const aiInsights = await generateAIInsights(
         interviewData.questions,
-        interviewData.answers,
-        interviewData.feedback
+        interviewData.answers
       );
 
       // Create placement report
-      const reportRef = await adminDb.collection('placement_reports').add({
+      const reportRef = await db.collection('placement_reports').add({
         driveId,
         organizationId: driveData?.organizationId || '',
         collegeId: interviewData.collegeId || '',
@@ -76,7 +75,7 @@ export async function POST(
     }
 
     // Update drive status
-    await adminDb.collection('interview_drives').doc(driveId).update({
+    await db.collection('interview_drives').doc(driveId).update({
       status: 'completed',
       completedAt: new Date(),
     });
@@ -95,7 +94,7 @@ export async function POST(
   }
 }
 
-async function generateAIInsights(questions: string[], answers: string[], _feedback: any) {
+async function generateAIInsights(questions: string[], answers: string[]) {
   try {
     // Import enhanced NLP analysis
     const { generateComprehensiveBehaviorReport } = await import('@/lib/nlp/sentiment-behavior-analysis');

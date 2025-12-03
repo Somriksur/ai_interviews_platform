@@ -10,12 +10,10 @@ export default async function CandidateDashboard() {
         redirect("/auth/sign-in");
     }
 
-    // If role is explicitly "recruiter", redirect to recruiter dashboard
-    if (user.role === "recruiter") {
-        redirect("/recruiter/dashboard");
+    // Allow access for "candidate" role only
+    if (user.role !== "candidate") {
+        redirect("/");
     }
-
-    // Allow access for "candidate" or undefined (default to candidate)
 
     const [availableInterviews, myInterviews] = await Promise.all([
         getAvailableInterviews(user.email),

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { CollegeNavigation } from "@/components/college/Navigation";
 
 interface College {
   id: string;
@@ -14,17 +15,34 @@ interface College {
   };
 }
 
-export default function CollegeDashboard({ params }: { params: { collegeId: string } }) {
+export default function CollegeDashboard({ params }: { params: Promise<{ collegeId: string }> }) {
   const [college, setCollege] = useState<College | null>(null);
   const [loading, setLoading] = useState(true);
+  const [collegeId, setCollegeId] = useState<string>("");
+  const [notificationCounts, setNotificationCounts] = useState({
+    driveSelections: 0,
+    jobNotifications: 0,
+    registrationRequests: 0,
+  });
 
   useEffect(() => {
-    fetchCollegeData();
-  }, [params.collegeId]);
+    const loadParams = async () => {
+      const resolvedParams = await params;
+      setCollegeId(resolvedParams.collegeId);
+    };
+    loadParams();
+  }, [params]);
+
+  useEffect(() => {
+    if (collegeId) {
+      fetchCollegeData();
+      fetchNotificationCounts();
+    }
+  }, [collegeId]);
 
   const fetchCollegeData = async () => {
     try {
-      const response = await fetch(`/api/colleges/${params.collegeId}`);
+      const response = await fetch(`/api/colleges/${collegeId}`);
       if (response.ok) {
         const data = await response.json();
         setCollege(data);
@@ -33,6 +51,36 @@ export default function CollegeDashboard({ params }: { params: { collegeId: stri
       console.error("Error fetching college data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNotificationCounts = async () => {
+    try {
+      // Fetch registration requests count
+      const registrationRequestsRes = await fetch(`/api/colleges/${collegeId}/registration-requests?status=pending`);
+      if (registrationRequestsRes.ok) {
+        const data = await registrationRequestsRes.json();
+        const pendingCount = data.requests?.length || 0;
+        setNotificationCounts(prev => ({ ...prev, registrationRequests: pendingCount }));
+      }
+
+      // Fetch drive selections count
+      const driveSelectionsRes = await fetch(`/api/colleges/${collegeId}/drive-selections`);
+      if (driveSelectionsRes.ok) {
+        const data = await driveSelectionsRes.json();
+        const pendingCount = data.notifications?.filter((n: any) => n.status === 'pending').length || 0;
+        setNotificationCounts(prev => ({ ...prev, driveSelections: pendingCount }));
+      }
+
+      // Fetch job notifications count
+      const jobNotificationsRes = await fetch(`/api/colleges/${collegeId}/job-notifications`);
+      if (jobNotificationsRes.ok) {
+        const data = await jobNotificationsRes.json();
+        const pendingCount = data.notifications?.filter((n: any) => n.status === 'pending').length || 0;
+        setNotificationCounts(prev => ({ ...prev, jobNotifications: pendingCount }));
+      }
+    } catch (error) {
+      console.error("Error fetching notification counts:", error);
     }
   };
 
@@ -45,10 +93,12 @@ export default function CollegeDashboard({ params }: { params: { collegeId: stri
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
+    <>
+      <CollegeNavigation collegeId={collegeId} />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
           <Link
             href={`/organization/${college?.organizationId}/colleges`}
             className="text-blue-600 hover:text-blue-700 mb-2 inline-block"
@@ -99,7 +149,27 @@ export default function CollegeDashboard({ params }: { params: { collegeId: stri
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Link
-            href={`/college/${params.collegeId}/students`}
+            href={`/college/${collegeId}/registration-requests`}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative"
+          >
+            {notificationCounts.registrationRequests > 0 && (
+              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                {notificationCounts.registrationRequests}
+              </div>
+            )}
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">📝</div>
+              <div>
+                <h3 className="text-lg font-semibold">Registration Requests</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Approve or reject student registrations
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href={`/college/${collegeId}/students`}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center gap-4">
@@ -114,7 +184,7 @@ export default function CollegeDashboard({ params }: { params: { collegeId: stri
           </Link>
 
           <Link
-            href={`/college/${params.collegeId}/reports`}
+            href={`/college/${collegeId}/reports`}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center gap-4">
@@ -129,7 +199,7 @@ export default function CollegeDashboard({ params }: { params: { collegeId: stri
           </Link>
 
           <Link
-            href={`/college/${params.collegeId}/analytics`}
+            href={`/college/${collegeId}/analytics`}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center gap-4">
@@ -142,8 +212,79 @@ export default function CollegeDashboard({ params }: { params: { collegeId: stri
               </div>
             </div>
           </Link>
+
+          <Link
+            href={`/college/${collegeId}/categorization`}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">🎯</div>
+              <div>
+                <h3 className="text-lg font-semibold">Student Categorization</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  View students by LPA category
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href={`/college/${collegeId}/job-notifications`}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative"
+          >
+            {notificationCounts.jobNotifications > 0 && (
+              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                {notificationCounts.jobNotifications}
+              </div>
+            )}
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">📬</div>
+              <div>
+                <h3 className="text-lg font-semibold">Job Notifications</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  View and respond to job opportunities
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href={`/college/${collegeId}/drive-selections`}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative"
+          >
+            {notificationCounts.driveSelections > 0 && (
+              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                {notificationCounts.driveSelections}
+              </div>
+            )}
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">🎯</div>
+              <div>
+                <h3 className="text-lg font-semibold">Interview Drive Selections</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  View student selections from interview drives
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href={`/college/${collegeId}/selections`}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">✅</div>
+              <div>
+                <h3 className="text-lg font-semibold">Job Selections</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  View students selected for job postings
+                </p>
+              </div>
+            </div>
+          </Link>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

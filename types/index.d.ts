@@ -2,7 +2,7 @@ interface Feedback {
   id: string;
   interviewId: string;
   candidateId: string;
-  recruiterId: string;
+  organizationId: string;
   totalScore: number;
   categoryScores: Array<{
     name: string;
@@ -28,7 +28,7 @@ interface Interview {
   questions: string[];
   techstack: string[];
   createdAt: string;
-  recruiterId: string;
+  organizationId: string;
   type: string;
   status: "draft" | "assigned" | "in-progress" | "completed";
   candidateEmail?: string;
@@ -49,7 +49,9 @@ interface User {
   name: string;
   email: string;
   id: string;
-  role: "recruiter" | "candidate";
+  role: "organization" | "college" | "student" | "candidate";
+  organizationId?: string;
+  collegeId?: string;
   createdAt?: string;
 }
 
@@ -95,8 +97,7 @@ interface SignUpParams {
   uid: string;
   name: string;
   email: string;
-  password: string;
-  role: "recruiter" | "candidate";
+  role: "organization" | "college" | "student" | "candidate";
 }
 
 type FormType = "sign-in" | "sign-up";
@@ -112,4 +113,36 @@ interface InterviewFormProps {
 
 interface TechIconProps {
   techStack: string[];
+}
+
+interface StudentReport {
+  technicalScore: number;
+  communicationRating: number;
+  overallScore: number;
+  skillInsights: {
+    technical: string[];
+    communication: string[];
+    problemSolving: string[];
+    leadership: string[];
+  };
+}
+
+interface JobRequirement {
+  id: string;
+  role: string;
+  skills: string[];
+  salaryRange: {
+    min: number;
+    max: number;
+    category: 'high' | 'mid' | 'low';
+  };
+  minScore?: number;
+}
+
+interface JobMatch {
+  jobId: string;
+  role: string;
+  matchScore: number;
+  salaryCategory: 'high' | 'mid' | 'low';
+  reasons: string[];
 }

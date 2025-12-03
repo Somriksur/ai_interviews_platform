@@ -1,0 +1,394 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Validation functions for college name normalization
+    function isValidNormalizedName(name) {
+      // Normalized names should be lowercase, trimmed, and at least 3 characters
+      return name is string && 
+             name.size() >= 3 && 
+             name == name.lower() &&
+             name == name.trim();
+    }
+    
+    function normalizedFieldsUnchanged() {
+      // Prevent direct modification of normalized fields
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['normalizedName', 'normalizedCollegeName']);
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+    
+    // Interviews collection
+    match /interviews/{interviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && 
+        (resource.data.candidateId == request.auth.uid || 
+         resource.data.organizationId == request.auth.uid);
+    }
+    
+    // Interview Drives collection
+    match /interviewDrives/{driveId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+    }
+    
+    // Drive Participants collection
+    match /driveParticipants/{participantId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+    
+    // AI Analysis Results collection (NEW)
+    match /aiAnalysisResults/{analysisId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+      allow delete: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+    }
+    
+    // Technical Evaluations collection (NEW)
+    match /technicalEvaluations/{evaluationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Behavioral Analysis collection (NEW)
+    match /behavioralAnalysis/{analysisId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Combined Reports collection (NEW)
+    match /combinedReports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+      allow delete: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+    }
+    
+    // Report Generation Jobs collection (NEW)
+    match /reportGenerationJobs/{jobId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+      allow delete: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+    }
+    
+    // Analysis Metrics collection (NEW)
+    match /analysisMetrics/{metricId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Error Logs collection (NEW)
+    match /errorLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    // Feedbacks collection
+    match /feedbacks/{feedbackId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+    }
+    
+    // Organizations collection
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+    
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // Student Selections collection
+    match /studentSelections/{selectionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+    
+    // Drive Notifications collection (NEW)
+    match /driveNotifications/{notificationId} {
+      // Colleges can read their own notifications
+      allow read: if isAuthenticated() && 
+        resource.data.collegeId == request.auth.uid;
+      
+      // Only system (via Admin SDK) can create notifications
+      allow create: if false;
+      
+      // Colleges can update status of their notifications
+      allow update: if isAuthenticated() && 
+        resource.data.collegeId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'respondedAt']);
+      
+      // No one can delete notifications
+      allow delete: if false;
+    }
+    
+    // Job Notifications collection
+    match /jobNotifications/{notificationId} {
+      allow read: if isAuthenticated() && 
+        resource.data.collegeId == request.auth.uid;
+      allow create: if false;
+      allow update: if isAuthenticated() && 
+        resource.data.collegeId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'respondedAt']);
+      allow delete: if false;
+    }
+    
+    // Interview Drives collection (snake_case version)
+    match /interview_drives/{driveId} {
+      allow read: if isAuthenticated();
+      
+      // Interview drives can be created by organizations
+      allow create: if isAuthenticated() && 
+        request.resource.data.organizationId is string;
+      
+      // Interview drives can be updated by the owning organization
+      // Tagged colleges array should contain normalized college names
+      allow update: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+      
+      allow delete: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+    }
+    
+    // Interview Sessions collection
+    match /interview_sessions/{sessionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Job Postings collection
+    match /jobPostings/{postingId} {
+      allow read: if isAuthenticated();
+      
+      // Job postings can be created by organizations
+      allow create: if isAuthenticated() && 
+        request.resource.data.organizationId is string;
+      
+      // Job postings can be updated by the owning organization
+      // Tagged colleges array should contain normalized college names
+      allow update: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+      
+      allow delete: if isAuthenticated() && 
+        resource.data.organizationId == request.auth.uid;
+    }
+    
+    // Colleges collection
+    match /colleges/{collegeId} {
+      allow read: if isAuthenticated();
+      
+      // College creation requires valid normalizedName
+      allow create: if isAuthenticated() && 
+        request.resource.data.normalizedName is string &&
+        isValidNormalizedName(request.resource.data.normalizedName) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 3;
+      
+      // College updates cannot modify normalizedName directly
+      // (should be done through dedicated update endpoint)
+      allow update: if isAuthenticated() && 
+        normalizedFieldsUnchanged();
+      
+      allow delete: if isAuthenticated();
+    }
+    
+    // Students collection
+    match /students/{studentId} {
+      // Students can read their own data
+      // College admins can read students from their college
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid ||
+         resource.data.normalizedCollegeName == request.auth.token.normalizedCollegeName);
+      
+      // Student creation requires valid normalizedCollegeName
+      allow create: if isAuthenticated() && 
+        request.resource.data.normalizedCollegeName is string &&
+        isValidNormalizedName(request.resource.data.normalizedCollegeName);
+      
+      // Students can update their own data (except normalized fields)
+      // College admins can update students from their college
+      allow update: if isAuthenticated() && 
+        normalizedFieldsUnchanged() &&
+        (resource.data.userId == request.auth.uid ||
+         resource.data.normalizedCollegeName == request.auth.token.normalizedCollegeName);
+      
+      allow delete: if isAuthenticated();
+    }
+    
+    // Student Notifications collection
+    match /student_notifications/{notificationId} {
+      // Students can read their own notifications
+      allow read: if isAuthenticated() && 
+        resource.data.studentId == request.auth.uid;
+      
+      // Only system (via Admin SDK) can create notifications
+      allow create: if false;
+      
+      // Students can update read status of their notifications
+      allow update: if isAuthenticated() && 
+        resource.data.studentId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['read', 'readAt']);
+      
+      // Students can delete their own notifications
+      allow delete: if isAuthenticated() && 
+        resource.data.studentId == request.auth.uid;
+    }
+    
+    // College Notifications collection
+    match /college_notifications/{notificationId} {
+      // Colleges can read their own notifications
+      allow read: if isAuthenticated() && 
+        resource.data.collegeId == request.auth.uid;
+      
+      // Only system (via Admin SDK) can create notifications
+      allow create: if false;
+      
+      // Colleges can update status of their notifications
+      allow update: if isAuthenticated() && 
+        resource.data.collegeId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'collegeResponse', 'collegeNotes', 'respondedAt', 'read']);
+      
+      // No one can delete notifications
+      allow delete: if false;
+    }
+    
+    // Drive Student Selections collection
+    match /drive_student_selections/{selectionId} {
+      allow read: if isAuthenticated();
+      allow create: if false;
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    
+    // College Messages collection (NEW)
+    match /college_messages/{messageId} {
+      // Colleges can read their own messages
+      // Students can read messages targeted to them
+      allow read: if isAuthenticated() && 
+        (resource.data.collegeId == request.auth.uid ||
+         resource.data.targetStudentIds.hasAny([request.auth.uid]));
+      
+      // Colleges can create messages
+      allow create: if isAuthenticated() && 
+        request.resource.data.collegeId == request.auth.uid;
+      
+      // Messages are immutable after creation
+      allow update, delete: if false;
+    }
+    
+    // Drive Student Tags collection (NEW)
+    match /drive_student_tags/{tagId} {
+      // Anyone authenticated can read tags
+      allow read: if isAuthenticated();
+      
+      // Colleges can create tags for their students
+      allow create: if isAuthenticated() && 
+        request.resource.data.collegeId == request.auth.uid;
+      
+      // Colleges can update tags (e.g., change status)
+      allow update: if isAuthenticated() && 
+        resource.data.collegeId == request.auth.uid;
+      
+      // Colleges can delete tags
+      allow delete: if isAuthenticated() && 
+        resource.data.collegeId == request.auth.uid;
+    }
+    
+    // Registration Requests collection (NEW)
+    match /registration_requests/{requestId} {
+      // Students can read their own requests
+      // College admins can read requests for their college
+      allow read: if isAuthenticated() && 
+        (resource.data.email == request.auth.token.email ||
+         resource.data.normalizedCollegeName == request.auth.token.normalizedCollegeName);
+      
+      // Students can create registration requests with valid normalizedCollegeName
+      allow create: if isAuthenticated() && 
+        request.resource.data.normalizedCollegeName is string &&
+        isValidNormalizedName(request.resource.data.normalizedCollegeName) &&
+        request.resource.data.collegeName is string &&
+        request.resource.data.collegeName.size() >= 3 &&
+        request.resource.data.email is string &&
+        request.resource.data.studentName is string;
+      
+      // College admins can update status of requests for their college
+      // (approve/reject actions)
+      allow update: if isAuthenticated() && 
+        resource.data.normalizedCollegeName == request.auth.token.normalizedCollegeName &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'reviewedAt', 'reviewedBy', 'rejectionReason']);
+      
+      // No one can delete registration requests
+      allow delete: if false;
+    }
+    
+    // Error Logs collection (for migration validation)
+    match /error_logs/{logId} {
+      // Admins can read error logs
+      allow read: if isAuthenticated();
+      
+      // Only system (via Admin SDK) can create error logs
+      allow create: if false;
+      
+      // Admins can update error logs to mark them as resolved
+      allow update: if isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['resolvedAt', 'resolution']);
+      
+      // No one can delete error logs
+      allow delete: if false;
+    }
+  }
+}

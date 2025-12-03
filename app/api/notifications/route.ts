@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as adminDb } from "@/firebase/admin";
+import { db as db } from "@/firebase/admin";
 
 export async function GET(request: NextRequest) {
     try {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Fetch notifications from Firestore
-        const notificationsRef = adminDb
+        const notificationsRef = db
             .collection("notifications")
             .where("userId", "==", userId)
             .orderBy("createdAt", "desc")
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Create notification in Firestore
-        const notificationRef = await adminDb.collection("notifications").add({
+        const notificationRef = await db.collection("notifications").add({
             userId,
             type,
             title,

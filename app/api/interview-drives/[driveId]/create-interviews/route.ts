@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db as adminDb } from '@/firebase/admin';
+import { db as db } from '@/firebase/admin';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ driveId: string }> }) {
   try {
@@ -7,7 +7,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { questions, techstack, level, type } = await request.json();
 
     // Get drive details
-    const driveDoc = await adminDb.collection('interview_drives').doc(driveId).get();
+    const driveDoc = await db.collection('interview_drives').doc(driveId).get();
     
     if (!driveDoc.exists) {
       return NextResponse.json(
@@ -27,16 +27,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Create interviews for all tagged students
-    const batch = adminDb.batch();
+    const batch = db.batch();
     const interviewIds: string[] = [];
 
     for (const studentId of studentIds) {
       // Get student details
-      const studentDoc = await adminDb.collection('students').doc(studentId).get();
+      const studentDoc = await db.collection('students').doc(studentId).get();
       const studentData = studentDoc.data();
 
       if (studentData) {
-        const interviewRef = adminDb.collection('interviews').doc();
+        const interviewRef = db.collection('interviews').doc();
         batch.set(interviewRef, {
           role: driveData?.role || '',
           level: level || 'mid-level',
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await batch.commit();
 
     // Update drive status
-    await adminDb.collection('interview_drives').doc(driveId).update({
+    await db.collection('interview_drives').doc(driveId).update({
       status: 'in-progress',
     });
 

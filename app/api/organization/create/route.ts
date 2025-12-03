@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db as adminDb } from '@/firebase/admin';
+import { db as db } from '@/firebase/admin';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const orgRef = await adminDb.collection('organizations').add({
+    const orgRef = await db.collection('organizations').add({
       name,
       email,
       phone: phone || '',
@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      id: orgRef.id,
       organizationId: orgRef.id,
     });
   } catch (error) {

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db as adminDb } from '@/firebase/admin';
+import { db as db } from '@/firebase/admin';
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ driveId: string }> }) {
   try {
     const { driveId } = await params;
     // Get drive details
-    const driveDoc = await adminDb.collection('interview_drives').doc(driveId).get();
+    const driveDoc = await db.collection('interview_drives').doc(driveId).get();
     
     if (!driveDoc.exists) {
       return NextResponse.json(
@@ -17,7 +17,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     const driveData = driveDoc.data();
 
     // Get all placement reports for this drive
-    const reportsSnapshot = await adminDb
+    const reportsSnapshot = await db
       .collection('placement_reports')
       .where('driveId', '==', driveId)
       .get();
@@ -30,7 +30,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     }
 
     // Get all job profiles for this organization
-    const jobsSnapshot = await adminDb
+    const jobsSnapshot = await db
       .collection('job_profiles')
       .where('organizationId', '==', driveData?.organizationId)
       .get();
@@ -47,7 +47,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       const reportData = reportDoc.data();
       
       // Get student details
-      const studentDoc = await adminDb.collection('students').doc(reportData.studentId).get();
+      const studentDoc = await db.collection('students').doc(reportData.studentId).get();
       const studentData = studentDoc.data();
 
       if (!studentData) continue;
@@ -62,7 +62,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       );
 
       // Save matches
-      const matchRef = await adminDb.collection('student_job_matches').add({
+      const matchRef = await db.collection('student_job_matches').add({
         studentId: reportData.studentId,
         driveId: driveId,
         matches: matches.slice(0, 5), // Top 5 matches
@@ -71,7 +71,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       });
 
       // Update report with recommended jobs
-      await adminDb.collection('placement_reports').doc(reportDoc.id).update({
+      await db.collection('placement_reports').doc(reportDoc.id).update({
         recommendedJobs: matches.slice(0, 5).map((m: any) => m.jobId),
       });
 

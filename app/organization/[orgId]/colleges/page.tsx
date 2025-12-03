@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 // import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ interface College {
   };
 }
 
-export default function CollegesPage({ params }: { params: { orgId: string } }) {
+export default function CollegesPage({ params }: { params: Promise<{ orgId: string }> }) {
+  const { orgId } = use(params);
   const [colleges, setColleges] = useState<College[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -32,11 +33,11 @@ export default function CollegesPage({ params }: { params: { orgId: string } }) 
 
   useEffect(() => {
     fetchColleges();
-  }, [params.orgId]);
+  }, [orgId]);
 
   const fetchColleges = async () => {
     try {
-      const response = await fetch(`/api/organization/${params.orgId}/colleges`);
+      const response = await fetch(`/api/organization/${orgId}/colleges`);
       if (response.ok) {
         const { colleges } = await response.json();
         setColleges(colleges);
@@ -52,7 +53,7 @@ export default function CollegesPage({ params }: { params: { orgId: string } }) 
     e.preventDefault();
     
     try {
-      const response = await fetch(`/api/organization/${params.orgId}/colleges`, {
+      const response = await fetch(`/api/organization/${orgId}/colleges`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -107,7 +108,7 @@ export default function CollegesPage({ params }: { params: { orgId: string } }) 
         <div className="flex items-center justify-between mb-8">
           <div>
             <Link
-              href={`/organization/${params.orgId}/dashboard`}
+              href={`/organization/${orgId}/dashboard`}
               className="text-blue-600 hover:text-blue-700 mb-2 inline-block"
             >
               ← Back to Dashboard
@@ -242,19 +243,29 @@ export default function CollegesPage({ params }: { params: { orgId: string } }) 
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="space-y-2">
                   <Link
-                    href={`/college/${college.id}/dashboard`}
-                    className="flex-1 text-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    href={`/organization/${orgId}/interview-drives/create?collegeId=${college.id}`}
+                    className="block w-full"
                   >
-                    View Dashboard
+                    <Button variant="default" size="sm" className="w-full">
+                      📋 Create Interview Drive
+                    </Button>
                   </Link>
-                  <button
-                    onClick={() => handleDeleteCollege(college.id)}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    🗑️
-                  </button>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/college/${college.id}/dashboard`}
+                      className="flex-1 text-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      View Dashboard
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteCollege(college.id)}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

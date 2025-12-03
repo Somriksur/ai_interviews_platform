@@ -174,7 +174,7 @@ export const interviewCovers = [
 export const dummyInterviews: Interview[] = [
     {
         id: "1",
-        recruiterId: "user1",
+        organizationId: "user1",
         role: "Frontend Developer",
         type: "Technical",
         techstack: ["React", "TypeScript", "Next.js", "Tailwind CSS"],
@@ -185,7 +185,7 @@ export const dummyInterviews: Interview[] = [
     },
     {
         id: "2",
-        recruiterId: "user1",
+        organizationId: "user1",
         role: "Full Stack Developer",
         type: "Mixed",
         techstack: ["Node.js", "Express", "MongoDB", "React"],

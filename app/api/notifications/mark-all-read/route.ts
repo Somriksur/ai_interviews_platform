@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db as adminDb } from "@/firebase/admin";
+import { db as db } from "@/firebase/admin";
 
 export async function POST(request: NextRequest) {
     try {
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get all unread notifications for user
-        const notificationsRef = adminDb
+        const notificationsRef = db
             .collection("notifications")
             .where("userId", "==", userId)
             .where("read", "==", false);
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
         const snapshot = await notificationsRef.get();
 
         // Batch update
-        const batch = adminDb.batch();
+        const batch = db.batch();
         snapshot.docs.forEach((doc) => {
             batch.update(doc.ref, {
                 read: true,

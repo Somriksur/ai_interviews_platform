@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db as adminDb } from '@/firebase/admin';
+import { db as db } from '@/firebase/admin';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ driveId: string }> }) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    await adminDb.collection('interview_drives').doc(driveId).update({
+    await db.collection('interview_drives').doc(driveId).update({
       taggedStudents: studentIds,
       'stats.totalStudents': studentIds.length,
     });
