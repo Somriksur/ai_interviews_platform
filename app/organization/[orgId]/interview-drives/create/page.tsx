@@ -4,7 +4,6 @@ import { use, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import DynamicTechStackSelector from "@/components/interview/DynamicTechStackSelector";
 
 interface College {
   id: string;
@@ -20,6 +19,29 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
   const [fetchingPrePopulation, setFetchingPrePopulation] = useState(false);
   const router = useRouter();
 
+  // Predefined CS/IT job roles
+  const jobRoles = [
+    "Software Engineer",
+    "Frontend Developer", 
+    "Backend Developer",
+    "Full Stack Developer",
+    "Mobile Developer",
+    "DevOps Engineer",
+    "Data Scientist",
+    "Data Analyst",
+    "Machine Learning Engineer",
+    "QA Engineer",
+    "Test Engineer",
+    "Product Manager",
+    "Technical Lead",
+    "System Administrator",
+    "Database Administrator",
+    "Cloud Engineer",
+    "Security Engineer",
+    "UI/UX Designer",
+    "Business Analyst",
+    "Project Manager"
+  ];
   // Get URL parameters
   const jobId = searchParams.get('jobId');
   const collegeId = searchParams.get('collegeId');
@@ -39,9 +61,7 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
   const [interviewConfig, setInterviewConfig] = useState({
     level: "Mid-level",
     type: "Technical",
-    techstack: [] as string[],
     amount: 5,
-    useDynamicTechStack: true,
   });
 
   // Question generation state
@@ -181,9 +201,7 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
           role: driveData.role,
           level: interviewConfig.level,
           type: interviewConfig.type,
-          techstack: interviewConfig.techstack,
           amount: interviewConfig.amount,
-          useDynamicTechStack: interviewConfig.useDynamicTechStack,
         }),
       });
 
@@ -192,12 +210,7 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
         setGeneratedQuestions(data.questions);
         setQuestionsGenerated(true);
         
-        // Show success message with tech stack info
-        const techStackInfo = data.metadata?.isDynamicTechStack 
-          ? `Dynamic tech stack: ${data.metadata.techStack?.join(', ')}`
-          : `Custom tech stack: ${interviewConfig.techstack.join(', ')}`;
-        
-        alert(`✅ Generated ${data.questions.length} questions successfully!\n${techStackInfo}`);
+        alert(`✅ Generated ${data.questions.length} questions successfully using role-based approach!`);
       } else {
         const errorData = await response.json();
         setQuestionError(errorData.error || 'Failed to generate questions');
@@ -246,7 +259,6 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
             role: driveData.role,
             level: interviewConfig.level,
             type: interviewConfig.type,
-            techstack: interviewConfig.techstack,
             amount: interviewConfig.amount,
           },
           questions: generatedQuestions.map((question, index) => ({
@@ -365,14 +377,19 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Job Role *</label>
-                <input
-                  type="text"
+                <select
                   required
                   value={driveData.role}
                   onChange={(e) => setDriveData({ ...driveData, role: e.target.value })}
                   className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  placeholder="e.g., Software Developer"
-                />
+                >
+                  <option value="">Select a job role</option>
+                  {jobRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
               </div>
               <Button
                 onClick={() => setStep(2)}
@@ -488,18 +505,6 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
               </div>
             </div>
 
-            {/* Dynamic Tech Stack Selector */}
-            <div className="mb-6">
-              <DynamicTechStackSelector
-                onTechStackChange={(techStacks) => 
-                  setInterviewConfig({ ...interviewConfig, techstack: techStacks })
-                }
-                selectedRole={driveData.role}
-                selectedLevel={interviewConfig.level}
-                maxSelection={8}
-              />
-            </div>
-
             {/* AI Question Generation Section */}
             <div className="mt-8 border-t pt-6">
               <h3 className="text-lg font-semibold mb-4">🤖 AI Question Generation</h3>
@@ -507,7 +512,7 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
               {!questionsGenerated ? (
                 <div className="text-center py-6">
                   <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    Generate intelligent interview questions using our custom AI model
+                    Generate intelligent interview questions based on job role and experience level
                   </p>
                   <Button
                     onClick={handleGenerateQuestions}
@@ -588,7 +593,8 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
                 <li>📋 Drive: {driveData.name}</li>
                 <li>💼 Role: {driveData.role}</li>
                 <li>🏫 Colleges: {driveData.selectedColleges.length}</li>
-                <li>🔧 Tech Stack: {interviewConfig.techstack.length > 0 ? interviewConfig.techstack.join(', ') : 'Dynamic (AI-selected)'}</li>
+                <li>📊 Level: {interviewConfig.level}</li>
+                <li>🎯 Type: {interviewConfig.type}</li>
                 <li>❓ Questions: {questionsGenerated ? generatedQuestions.length : interviewConfig.amount}</li>
               </ul>
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-3">
@@ -600,7 +606,7 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
             {!questionsGenerated && (
               <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                  💡 <strong>Next Step:</strong> Generate AI-powered interview questions with {interviewConfig.techstack.length > 0 ? 'your selected' : 'dynamically chosen'} tech stack before creating your drive.
+                  💡 <strong>Next Step:</strong> Generate AI-powered interview questions based on the job role and experience level.
                 </p>
               </div>
             )}
