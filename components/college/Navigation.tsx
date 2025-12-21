@@ -51,9 +51,9 @@ export function CollegeNavigation({ collegeId }: CollegeNavigationProps) {
         </Button>
       </Link>
 
-      <Link href={`/college/${collegeId}/drive-selections`}>
+      <Link href={`/college/${collegeId}/selections`}>
         <Button 
-          variant={isActive(`/college/${collegeId}/drive-selections`) ? "default" : "ghost"}
+          variant={isActive(`/college/${collegeId}/selections`) ? "default" : "ghost"}
           className="gap-2"
         >
           ✅ Selections
@@ -66,6 +66,15 @@ export function CollegeNavigation({ collegeId }: CollegeNavigationProps) {
           className="gap-2"
         >
           💼 Job Notifications
+        </Button>
+      </Link>
+
+      <Link href={`/college/${collegeId}/reports`}>
+        <Button 
+          variant={isActive(`/college/${collegeId}/reports`) ? "default" : "ghost"}
+          className="gap-2"
+        >
+          📊 Reports
         </Button>
       </Link>
     </nav>

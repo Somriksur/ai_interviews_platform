@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as db } from "@/firebase/admin";
+import { getCurrentUser } from "@/lib/actions/auth.action";
 
 /**
  * GET /api/interview-drives/[driveId]
@@ -12,22 +13,26 @@ export async function GET(
   try {
     const { driveId } = await params;
 
-    const driveDoc = await db.collection("interview_drives").doc(driveId).get();
+    const driveDoc = await db
+      .collection("interview_drives")
+      .doc(driveId)
+      .get();
 
     if (!driveDoc.exists) {
-      return NextResponse.json({ error: "Drive not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Interview drive not found" },
+        { status: 404 }
+      );
     }
 
-    const driveData = {
+    return NextResponse.json({
       id: driveDoc.id,
       ...driveDoc.data(),
-    };
-
-    return NextResponse.json(driveData);
+    });
   } catch (error) {
-    console.error("Error fetching drive:", error);
+    console.error("Error fetching interview drive:", error);
     return NextResponse.json(
-      { error: "Failed to fetch drive" },
+      { error: "Failed to fetch interview drive" },
       { status: 500 }
     );
   }
@@ -35,33 +40,117 @@ export async function GET(
 
 /**
  * DELETE /api/interview-drives/[driveId]
- * Delete an interview drive
+ * Delete an interview drive and all related data
  */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ driveId: string }> }
 ) {
   try {
-    const { driveId } = await params;
-
-    // Check if drive exists
-    const driveDoc = await db.collection("interview_drives").doc(driveId).get();
-
-    if (!driveDoc.exists) {
-      return NextResponse.json({ error: "Drive not found" }, { status: 404 });
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'organization') {
+      return NextResponse.json({ error: 'Unauthorized - must be organization user' }, { status: 401 });
     }
 
-    // Delete the drive
-    await db.collection("interview_drives").doc(driveId).delete();
+    const { driveId } = await params;
 
-    return NextResponse.json({ 
-      success: true, 
-      message: "Interview drive deleted successfully" 
+    // Get the interview drive
+    const driveDoc = await db.collection('interview_drives').doc(driveId).get();
+    
+    if (!driveDoc.exists) {
+      return NextResponse.json({ error: 'Interview drive not found' }, { status: 404 });
+    }
+
+    const driveData = driveDoc.data();
+
+    // Verify ownership
+    const orgSnapshot = await db
+      .collection('organizations')
+      .where('adminId', '==', user.id)
+      .get();
+
+    if (orgSnapshot.empty) {
+      return NextResponse.json({ error: 'Organization not found for this user' }, { status: 404 });
+    }
+
+    const userOrgId = orgSnapshot.docs[0].id;
+
+    if (driveData?.organizationId !== userOrgId) {
+      return NextResponse.json({ error: 'Unauthorized - drive belongs to different organization' }, { status: 403 });
+    }
+
+    // Delete related data
+    const batch = db.batch();
+
+    // Delete interview sessions
+    const sessionsSnapshot = await db
+      .collection('interview_sessions')
+      .where('driveId', '==', driveId)
+      .get();
+
+    const evaluationIds: string[] = [];
+    sessionsSnapshot.docs.forEach((doc) => {
+      const sessionData = doc.data();
+      if (sessionData.evaluationId) {
+        evaluationIds.push(sessionData.evaluationId);
+      }
+      batch.delete(doc.ref);
+    });
+
+    // Delete evaluation reports
+    for (const evaluationId of evaluationIds) {
+      const reportRef = db.collection('evaluation_reports').doc(evaluationId);
+      batch.delete(reportRef);
+    }
+
+    // Delete drive notifications
+    const driveNotificationsSnapshot = await db
+      .collection('driveNotifications')
+      .where('driveId', '==', driveId)
+      .get();
+
+    driveNotificationsSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    // Delete drive student tags
+    const tagsSnapshot = await db
+      .collection('drive_student_tags')
+      .where('driveId', '==', driveId)
+      .get();
+
+    tagsSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    // Delete the interview drive itself
+    batch.delete(driveDoc.ref);
+
+    // Execute all deletes
+    await batch.commit();
+
+    console.log(`✅ Deleted interview drive ${driveId} and all related data`, {
+      driveId,
+      sessionsDeleted: sessionsSnapshot.size,
+      evaluationReportsDeleted: evaluationIds.length,
+      notificationsDeleted: driveNotificationsSnapshot.size,
+      tagsDeleted: tagsSnapshot.size,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Interview drive deleted successfully',
+      deleted: {
+        sessions: sessionsSnapshot.size,
+        evaluationReports: evaluationIds.length,
+        notifications: driveNotificationsSnapshot.size,
+        tags: tagsSnapshot.size,
+      }
     });
   } catch (error) {
-    console.error("Error deleting drive:", error);
+    console.error('❌ Error deleting interview drive:', error);
     return NextResponse.json(
-      { error: "Failed to delete drive" },
+      { error: 'Failed to delete interview drive' },
       { status: 500 }
     );
   }

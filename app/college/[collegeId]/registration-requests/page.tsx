@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { CollegeNavigation } from '@/components/college/Navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -186,54 +187,56 @@ export default function RegistrationRequestsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <>
+      <CollegeNavigation collegeId={collegeId} />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             Student Registration Requests
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             Review and manage student registration requests for your college
           </p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card className="p-4">
+          <Card className="p-4 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Requests</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Total Requests</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.total}</p>
               </div>
-              <User className="h-8 w-8 text-gray-400" />
+              <User className="h-8 w-8 text-gray-400 dark:text-gray-500" />
             </div>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Pending</p>
+                <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-500">{stats.pending}</p>
               </div>
-              <Clock className="h-8 w-8 text-yellow-400" />
+              <Clock className="h-8 w-8 text-yellow-400 dark:text-yellow-500" />
             </div>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Approved</p>
-                <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Approved</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-500">{stats.approved}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-400" />
+              <CheckCircle className="h-8 w-8 text-green-400 dark:text-green-500" />
             </div>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Rejected</p>
-                <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Rejected</p>
+                <p className="text-2xl font-bold text-red-600 dark:text-red-500">{stats.rejected}</p>
               </div>
-              <XCircle className="h-8 w-8 text-red-400" />
+              <XCircle className="h-8 w-8 text-red-400 dark:text-red-500" />
             </div>
           </Card>
         </div>
@@ -292,12 +295,12 @@ export default function RegistrationRequestsPage() {
 
         {/* Empty State */}
         {!isLoading && requests.length === 0 && (
-          <Card className="p-12 text-center">
-            <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <Card className="p-12 text-center bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <User className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
               No Registration Requests
             </h3>
-            <p className="text-gray-600">
+            <p className="text-gray-600 dark:text-gray-400">
               {statusFilter === 'pending'
                 ? 'There are no pending registration requests at this time.'
                 : `No ${statusFilter} registration requests found.`}
@@ -309,17 +312,17 @@ export default function RegistrationRequestsPage() {
         {!isLoading && requests.length > 0 && (
           <div className="space-y-4">
             {requests.map((request) => (
-              <Card key={request.id} className="p-6">
+              <Card key={request.id} className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                      <User className="h-6 w-6 text-blue-600" />
+                    <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                      <User className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {request.studentName}
                       </h3>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         Submitted {formatDate(request.submittedAt)}
                       </p>
                     </div>
@@ -329,29 +332,29 @@ export default function RegistrationRequestsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-600">Email:</span>
-                    <span className="font-medium">{request.email}</span>
+                    <Mail className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                    <span className="text-gray-600 dark:text-gray-400">Email:</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{request.email}</span>
                   </div>
                   {request.rollNumber && (
                     <div className="flex items-center gap-2 text-sm">
-                      <BookOpen className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-600">Roll Number:</span>
-                      <span className="font-medium">{request.rollNumber}</span>
+                      <BookOpen className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                      <span className="text-gray-600 dark:text-gray-400">Roll Number:</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{request.rollNumber}</span>
                     </div>
                   )}
                   {request.branch && (
                     <div className="flex items-center gap-2 text-sm">
-                      <BookOpen className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-600">Branch:</span>
-                      <span className="font-medium">{request.branch}</span>
+                      <BookOpen className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                      <span className="text-gray-600 dark:text-gray-400">Branch:</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{request.branch}</span>
                     </div>
                   )}
                   {request.year && (
                     <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-600">Year:</span>
-                      <span className="font-medium">Year {request.year}</span>
+                      <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                      <span className="text-gray-600 dark:text-gray-400">Year:</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">Year {request.year}</span>
                     </div>
                   )}
                 </div>
@@ -366,13 +369,13 @@ export default function RegistrationRequestsPage() {
                 )}
 
                 {request.status === 'pending' && (
-                  <div className="flex gap-3 pt-4 border-t">
+                  <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <Button
                       onClick={() => {
                         setSelectedRequest(request);
                         setShowApproveDialog(true);
                       }}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      className="flex-1 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
                       Approve
@@ -392,8 +395,8 @@ export default function RegistrationRequestsPage() {
                 )}
 
                 {request.status === 'approved' && request.reviewedAt && (
-                  <div className="pt-4 border-t">
-                    <p className="text-sm text-green-600">
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-green-600 dark:text-green-500">
                       ✓ Approved on {formatDate(request.reviewedAt)}
                     </p>
                   </div>
@@ -514,7 +517,8 @@ export default function RegistrationRequestsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -15,12 +15,46 @@ export async function DELETE(
 
     const { studentId, notificationId } = await params;
     
+    console.log(`🔍 DELETE request - User: ${user.id} (${user.role}), Student: ${studentId}, Notification: ${notificationId}`);
+    
     // Verify user can access this student's notifications
     if (user.role === 'student') {
       // For students, verify they own this student record
       const studentDoc = await db.collection('students').doc(studentId).get();
-      if (!studentDoc.exists || studentDoc.data()?.userId !== user.id) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      console.log(`📋 Student doc exists: ${studentDoc.exists}`);
+      
+      if (!studentDoc.exists) {
+        console.log(`❌ Student document ${studentId} not found`);
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+      }
+      
+      const studentData = studentDoc.data();
+      console.log(`👤 Student userId: ${studentData?.userId}, Current user: ${user.id}`);
+      
+      if (studentData?.userId !== user.id) {
+        console.log(`❌ Access denied - Student userId (${studentData?.userId}) doesn't match current user (${user.id})`);
+        
+        // Special case: If userId is undefined but email matches, try to fix the link
+        if (!studentData?.userId && studentData?.email === user.email) {
+          console.log(`🔧 Attempting to auto-fix missing userId for student ${studentId}`);
+          
+          try {
+            await studentDoc.ref.update({
+              userId: user.id,
+              updatedAt: new Date(),
+              userLinkAutoFixed: true,
+              userLinkAutoFixedAt: new Date()
+            });
+            
+            console.log(`✅ Auto-fixed user link for student ${studentId}`);
+            // Continue with the request now that the link is fixed
+          } catch (fixError) {
+            console.error(`❌ Failed to auto-fix user link:`, fixError);
+            return NextResponse.json({ error: 'Access denied - missing user link' }, { status: 403 });
+          }
+        } else {
+          return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+        }
       }
     }
 
@@ -33,6 +67,7 @@ export async function DELETE(
       .get();
 
     if (!notificationDoc.exists) {
+      console.log(`❌ Notification ${notificationId} not found`);
       return NextResponse.json(
         { error: 'Notification not found' },
         { status: 404 }
@@ -40,9 +75,11 @@ export async function DELETE(
     }
 
     const notificationData = notificationDoc.data();
+    console.log(`📧 Notification studentId: ${notificationData?.studentId}, Expected: ${studentId}`);
     
     // Verify the notification belongs to this student
     if (notificationData?.studentId !== studentId) {
+      console.log(`❌ Notification belongs to different student: ${notificationData?.studentId} vs ${studentId}`);
       return NextResponse.json(
         { error: 'Notification does not belong to this student' },
         { status: 403 }

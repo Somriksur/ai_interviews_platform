@@ -86,8 +86,9 @@ export default function StudentNotificationsPage() {
         setSummary(data.summary);
         setPagination(data.pagination);
       } else {
-        console.error('Failed to fetch notifications');
-        toast.error('Failed to fetch notifications');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to fetch notifications:', response.status, errorData);
+        toast.error(errorData.error || 'Failed to fetch notifications');
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);

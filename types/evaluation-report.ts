@@ -1,6 +1,10 @@
 // Evaluation Report Data Models
 // Defines the structure for AI-generated interview evaluation reports
 
+import { AdvancedEmotionReport } from '../lib/nlp/advanced-emotion-detection';
+import { ConfidenceAnalysis } from '../lib/nlp/real-time-confidence-tracker';
+import { IndustryEvaluationReport } from '../lib/nlp/industry-specific-evaluator';
+
 export interface EvaluationScores {
   technical: number; // 0-100
   communication: number; // 0-100
@@ -55,6 +59,34 @@ export interface EvaluationReport {
   
   // Recommendation level
   recommendation: RecommendationLevel;
+  
+  // Advanced NLP Analysis
+  emotionAnalysis?: AdvancedEmotionReport;
+  confidenceAnalysis?: ConfidenceAnalysis;
+  industryEvaluation?: IndustryEvaluationReport;
+  
+  // Comprehensive insights
+  insights?: {
+    personalityProfile: string;
+    emotionalIntelligence: number;
+    communicationStyle: string;
+    stressResilience: number;
+    culturalFit: number;
+    leadershipPotential: number;
+    teamworkAbility: number;
+  };
+  
+  // Interview transcript
+  transcript?: {
+    fullTranscript: string;
+    questionResponses: Array<{
+      question: string;
+      response: string;
+      timestamp?: Date;
+      emotionalState?: string;
+      stressLevel?: number;
+    }>;
+  };
   
   // AI processing metadata
   aiMetadata: AIMetadata;

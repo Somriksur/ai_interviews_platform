@@ -23,6 +23,8 @@ export default function JobNotificationsPage({
   const [selectedNotification, setSelectedNotification] = useState<UnifiedNotification | null>(null);
   const [declineNotes, setDeclineNotes] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [notificationToDelete, setNotificationToDelete] = useState<UnifiedNotification | null>(null);
 
   useEffect(() => {
     fetchNotifications();
@@ -109,6 +111,35 @@ export default function JobNotificationsPage({
       }
     } catch (error) {
       console.error("Error declining notification:", error);
+      toast.error("An error occurred");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteNotification = async (notification: UnifiedNotification) => {
+    setIsProcessing(true);
+    try {
+      // Route to appropriate API based on notification type
+      const apiEndpoint = notification.type === "interview_drive"
+        ? `/api/drive-notifications/${notification.id}`
+        : `/api/job-notifications/${notification.id}`;
+      
+      const response = await fetch(apiEndpoint, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        const itemType = notification.type === "interview_drive" ? "Interview drive" : "Job";
+        toast.success(`${itemType} notification deleted successfully!`);
+        setShowDeleteDialog(false);
+        setNotificationToDelete(null);
+        fetchNotifications();
+      } else {
+        toast.error("Failed to delete notification");
+      }
+    } catch (error) {
+      console.error("Error deleting notification:", error);
       toast.error("An error occurred");
     } finally {
       setIsProcessing(false);
@@ -341,6 +372,17 @@ export default function JobNotificationsPage({
                       >
                         ✗ Decline
                       </Button>
+                      <Button
+                        onClick={() => {
+                          setNotificationToDelete(notification);
+                          setShowDeleteDialog(true);
+                        }}
+                        disabled={isProcessing}
+                        variant="ghost"
+                        className="text-gray-600 hover:text-red-600"
+                      >
+                        🗑️ Delete
+                      </Button>
                     </div>
                   )}
 
@@ -364,6 +406,32 @@ export default function JobNotificationsPage({
                           </Button>
                         </Link>
                       )}
+                      <Button
+                        onClick={() => {
+                          setNotificationToDelete(notification);
+                          setShowDeleteDialog(true);
+                        }}
+                        disabled={isProcessing}
+                        variant="ghost"
+                        className="text-gray-600 hover:text-red-600"
+                      >
+                        🗑️ Delete
+                      </Button>
+                    </div>
+                  )}
+
+                  {notification.status === "declined" && (
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          setNotificationToDelete(notification);
+                          setShowDeleteDialog(true);
+                        }}
+                        disabled={isProcessing}
+                        variant="destructive"
+                      >
+                        🗑️ Delete Notification
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -427,6 +495,53 @@ export default function JobNotificationsPage({
                 variant="destructive"
               >
                 {isProcessing ? "Declining..." : "Decline Opportunity"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Notification</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this notification? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            {notificationToDelete && (
+              <div className="py-4">
+                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded">
+                  <p className="font-medium">
+                    {isJobPostingNotification(notificationToDelete) && notificationToDelete.jobPosting?.role}
+                    {isDriveNotification(notificationToDelete) && notificationToDelete.interviewDrive?.role}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    From: {notificationToDelete.organization?.name}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Status: {notificationToDelete.status}
+                  </p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setNotificationToDelete(null);
+                }}
+                disabled={isProcessing}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => notificationToDelete && handleDeleteNotification(notificationToDelete)}
+                disabled={isProcessing}
+                variant="destructive"
+              >
+                {isProcessing ? "Deleting..." : "Delete Notification"}
               </Button>
             </DialogFooter>
           </DialogContent>

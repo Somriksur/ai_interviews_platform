@@ -148,12 +148,13 @@ export default function CollegeDashboard({ params }: { params: Promise<{ college
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Student Management */}
           <Link
             href={`/college/${collegeId}/registration-requests`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-all duration-200 relative"
           >
             {notificationCounts.registrationRequests > 0 && (
-              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center animate-pulse">
                 {notificationCounts.registrationRequests}
               </div>
             )}
@@ -170,70 +171,26 @@ export default function CollegeDashboard({ params }: { params: Promise<{ college
 
           <Link
             href={`/college/${collegeId}/students`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-all duration-200"
           >
             <div className="flex items-center gap-4">
               <div className="text-5xl">👥</div>
               <div>
                 <h3 className="text-lg font-semibold">Manage Students</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Add and manage student list
+                  View and manage student list
                 </p>
               </div>
             </div>
           </Link>
 
-          <Link
-            href={`/college/${collegeId}/reports`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center gap-4">
-              <div className="text-5xl">📊</div>
-              <div>
-                <h3 className="text-lg font-semibold">Placement Reports</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  View student placement reports
-                </p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href={`/college/${collegeId}/analytics`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center gap-4">
-              <div className="text-5xl">📈</div>
-              <div>
-                <h3 className="text-lg font-semibold">Analytics</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  View detailed analytics
-                </p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href={`/college/${collegeId}/categorization`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center gap-4">
-              <div className="text-5xl">🎯</div>
-              <div>
-                <h3 className="text-lg font-semibold">Student Categorization</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  View students by LPA category
-                </p>
-              </div>
-            </div>
-          </Link>
-
+          {/* Job & Interview Management */}
           <Link
             href={`/college/${collegeId}/job-notifications`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-all duration-200 relative"
           >
             {notificationCounts.jobNotifications > 0 && (
-              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center animate-pulse">
                 {notificationCounts.jobNotifications}
               </div>
             )}
@@ -249,35 +206,31 @@ export default function CollegeDashboard({ params }: { params: Promise<{ college
           </Link>
 
           <Link
-            href={`/college/${collegeId}/drive-selections`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative"
+            href={`/college/${collegeId}/selections`}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-all duration-200"
           >
-            {notificationCounts.driveSelections > 0 && (
-              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
-                {notificationCounts.driveSelections}
-              </div>
-            )}
             <div className="flex items-center gap-4">
-              <div className="text-5xl">🎯</div>
+              <div className="text-5xl">✅</div>
               <div>
-                <h3 className="text-lg font-semibold">Interview Drive Selections</h3>
+                <h3 className="text-lg font-semibold">Student Selections</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  View student selections from interview drives
+                  View all student placement selections
                 </p>
               </div>
             </div>
           </Link>
 
+          {/* Reports & Analytics */}
           <Link
-            href={`/college/${collegeId}/selections`}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+            href={`/college/${collegeId}/reports`}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-all duration-200"
           >
             <div className="flex items-center gap-4">
-              <div className="text-5xl">✅</div>
+              <div className="text-5xl">📊</div>
               <div>
-                <h3 className="text-lg font-semibold">Job Selections</h3>
+                <h3 className="text-lg font-semibold">Reports & Analytics</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  View students selected for job postings
+                  View placement reports and analytics
                 </p>
               </div>
             </div>

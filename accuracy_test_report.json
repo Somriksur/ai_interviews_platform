@@ -1,0 +1,104 @@
+{
+  "timestamp": "2025-12-21T05:56:47.919262",
+  "model_name": "somriksur/HireFlow-Qwen-Fresh-Pro",
+  "overall_accuracy": 80.0,
+  "total_score": 640,
+  "max_score": 800,
+  "status": "GOOD",
+  "category_performance": {
+    "format_quality": 96.875,
+    "content_quality": 68.75,
+    "question_quality": 84.375,
+    "tech_relevance": 37.5
+  },
+  "detailed_results": [
+    {
+      "test_name": "Python Junior Developer",
+      "score_breakdown": {
+        "format_score": 40,
+        "content_score": 15,
+        "quality_score": 20,
+        "tech_score": 3,
+        "total_score": 78
+      },
+      "generated_text": "system\nYou are an expert technical interviewer. Generate high-quality, numbered interview questions that end with question marks.\nuser\nGenerate 3 Python interview questions for junior level\nassistant\n..."
+    },
+    {
+      "test_name": "React Senior Developer",
+      "score_breakdown": {
+        "format_score": 40,
+        "content_score": 30,
+        "quality_score": 15,
+        "tech_score": 3,
+        "total_score": 88
+      },
+      "generated_text": "system\nYou are an expert technical interviewer. Generate high-quality, numbered interview questions that end with question marks.\nuser\nGenerate 2 React interview questions for senior level\nassistant\n1..."
+    },
+    {
+      "test_name": "JavaScript Mid-Level",
+      "score_breakdown": {
+        "format_score": 30,
+        "content_score": 20,
+        "quality_score": 20,
+        "tech_score": 6,
+        "total_score": 76
+      },
+      "generated_text": "system\nYou are an expert technical interviewer. Generate high-quality, numbered interview questions that end with question marks.\nuser\nGenerate 4 JavaScript interview questions for mid level\nassistant..."
+    },
+    {
+      "test_name": "Node.js Senior Backend",
+      "score_breakdown": {
+        "format_score": 40,
+        "content_score": 15,
+        "quality_score": 15,
+        "tech_score": 3,
+        "total_score": 73
+      },
+      "generated_text": "system\nYou are an expert technical interviewer. Generate high-quality, numbered interview questions that end with question marks.\nuser\nGenerate 5 Node.js interview questions for senior level\nassistant..."
+    },
+    {
+      "test_name": "Database Systems",
+      "score_breakdown": {
+        "format_score": 40,
+        "content_score": 25,
+        "quality_score": 15,
+        "tech_score": 6,
+        "total_score": 86
+      },
+      "generated_text": "system\nYou are an expert technical interviewer. Generate high-quality, numbered interview questions that end with question marks.\nuser\nGenerate 3 SQL database interview questions for mid level\nassista..."
+    },
+    {
+      "test_name": "System Design",
+      "score_breakdown": {
+        "format_score": 40,
+        "content_score": 20,
+        "quality_score": 15,
+        "tech_score": 3,
+        "total_score": 78
+      },
+      "generated_text": "system\nYou are an expert technical interviewer. Generate high-quality, numbered interview questions that end with question marks.\nuser\nGenerate 2 system design interview questions for senior level\nass..."
+    },
+    {
+      "test_name": "Data Structures",
+      "score_breakdown": {
+        "format_score": 40,
+        "content_score": 15,
+        "quality_score": 20,
+        "tech_score": 3,
+        "total_score": 78
+      },
+      "generated_text": "system\nYou are an expert technical interviewer. Generate high-quality, numbered interview questions that end with question marks.\nuser\nGenerate 4 data structures interview questions for junior level\na..."
+    },
+    {
+      "test_name": "DevOps Engineering",
+      "score_breakdown": {
+        "format_score": 40,
+        "content_score": 25,
+        "quality_score": 15,
+        "tech_score": 3,
+        "total_score": 83
+      },
+      "generated_text": "system\nYou are an expert technical interviewer. Generate high-quality, numbered interview questions that end with question marks.\nuser\nGenerate 3 Docker interview questions for mid level\nassistant\n1. ..."
+    }
+  ]
+}

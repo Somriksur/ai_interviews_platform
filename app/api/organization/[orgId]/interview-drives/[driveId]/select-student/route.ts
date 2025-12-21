@@ -117,7 +117,7 @@ export async function POST(
       .add(selectionData);
 
     // Create notification for the college
-    const notificationData = {
+    const collegeNotificationData = {
       type: 'drive_student_selection',
       collegeId,
       organizationId: orgId,
@@ -138,20 +138,52 @@ export async function POST(
       respondedAt: null,
     };
 
-    await db.collection('college_notifications').add(notificationData);
+    await db.collection('college_notifications').add(collegeNotificationData);
+
+    // Create notification for the student
+    const studentNotificationData = {
+      type: action, // 'selected' or 'rejected'
+      studentId,
+      driveId,
+      organizationId: orgId,
+      collegeId,
+      selectionId: selectionRef.id,
+      action,
+      title: action === 'selected' 
+        ? `🎉 Congratulations! You've been selected!`
+        : `Interview Update`,
+      message: action === 'selected'
+        ? `Great news! ${orgData?.name || 'The organization'} has selected you for the ${driveData?.role || 'position'} role from the interview drive "${driveData?.name || 'Interview Drive'}". Your college will be in touch with next steps.`
+        : `Thank you for participating in the interview drive "${driveData?.name || 'Interview Drive'}" for ${orgData?.name || 'the organization'}. While you weren't selected for this particular role, we encourage you to keep applying and improving your skills.`,
+      driveName: driveData?.name || 'Interview Drive',
+      organizationName: orgData?.name || 'Organization',
+      role: driveData?.role || 'Position',
+      score: score || null,
+      priority: action === 'selected' ? 'high' : 'normal',
+      createdAt: new Date(),
+      read: false,
+      status: 'delivered'
+    };
+
+    await db.collection('student_notifications').add(studentNotificationData);
 
     // Update the selection record to mark as notified
-    await selectionRef.update({ notified: true });
+    await selectionRef.update({ 
+      notified: true,
+      collegeNotified: true,
+      studentNotified: true,
+      notifiedAt: new Date()
+    });
 
     console.log(
-      `✅ Student ${action}: ${studentId} for drive ${driveId}. College ${collegeId} notified.`
+      `✅ Student ${action}: ${studentId} for drive ${driveId}. College and student notified.`
     );
 
     return NextResponse.json({
       success: true,
       selectionId: selectionRef.id,
       action,
-      message: `Student ${action} successfully. College has been notified.`,
+      message: `Student ${action} successfully. College and student have been notified.`,
     });
   } catch (error) {
     console.error('Error selecting/rejecting student:', error);

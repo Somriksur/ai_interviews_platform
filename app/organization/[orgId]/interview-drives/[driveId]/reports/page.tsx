@@ -126,7 +126,7 @@ export default function InterviewDriveReportsPage({
 
       if (response.ok) {
         alert(
-          `${report.student?.name} has been selected! College has been notified.`
+          `${report.student?.name} has been selected! Both college and student have been notified.`
         );
         // Update the report status in the UI
         setReports((prevReports) =>
@@ -165,7 +165,7 @@ export default function InterviewDriveReportsPage({
 
       if (response.ok) {
         alert(
-          `${report.student?.name} has been rejected. College has been notified.`
+          `${report.student?.name} has been rejected. Both college and student have been notified.`
         );
         // Update the report status in the UI
         setReports((prevReports) =>

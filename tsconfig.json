@@ -11,7 +11,8 @@
     },
 
     /* Custom + default type roots */
-    "typeRoots": ["./types", "./node_modules/@types"],
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["jest", "node"],
 
     /* TypeScript behavior */
     "allowJs": false,
@@ -50,5 +51,5 @@
     "types/**/*.d.ts"
   ],
 
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "**/__tests__/**/*"]
 }

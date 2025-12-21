@@ -45,10 +45,23 @@ export default function InterviewDrivesPage({ params }: { params: Promise<{ orgI
   const getStatusBadge = (status: string) => {
     const styles = {
       pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+      active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
       "in-progress": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      completed: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+      cancelled: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
     };
     return styles[status as keyof typeof styles] || styles.pending;
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels = {
+      pending: "Pending Approval",
+      active: "Active",
+      "in-progress": "In Progress", 
+      completed: "Completed",
+      cancelled: "Cancelled",
+    };
+    return labels[status as keyof typeof labels] || status;
   };
 
   const handleDeleteDrive = async (driveId: string, driveName: string) => {
@@ -131,7 +144,7 @@ export default function InterviewDrivesPage({ params }: { params: Promise<{ orgI
                           drive.status
                         )}`}
                       >
-                        {drive.status}
+                        {getStatusLabel(drive.status)}
                       </span>
                     </div>
                     <p className="text-gray-600 dark:text-gray-400 mb-2">{drive.description}</p>

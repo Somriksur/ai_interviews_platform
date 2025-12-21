@@ -47,6 +47,125 @@ interface DashboardData {
   };
 }
 
+interface Report {
+  id: string;
+  technicalScore: number;
+  communicationScore: number;
+  overallScore: number;
+  placementCategory: string;
+  recommendation: string;
+  generatedAt: string;
+  drive: {
+    name: string;
+    role: string;
+  };
+  organization: {
+    name: string;
+  };
+}
+
+// Recent Reports Component
+function RecentReports({ studentId }: { studentId: string }) {
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchReports();
+  }, [studentId]);
+
+  const fetchReports = async () => {
+    try {
+      const response = await fetch(`/api/students/${studentId}/reports`);
+      if (response.ok) {
+        const { reports } = await response.json();
+        setReports(reports.slice(0, 3)); // Show only recent 3 reports
+      }
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getRecommendationBadge = (recommendation: string) => {
+    const styles = {
+      'highly-recommended': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      'recommended': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      'consider': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      'not-recommended': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    };
+    return styles[recommendation as keyof typeof styles] || styles['not-recommended'];
+  };
+
+  const getRecommendationLabel = (recommendation: string) => {
+    const labels = {
+      'highly-recommended': 'Highly Recommended',
+      'recommended': 'Recommended',
+      'consider': 'Consider',
+      'not-recommended': 'Not Recommended',
+    };
+    return labels[recommendation as keyof typeof labels] || 'Not Recommended';
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+      </div>
+    );
+  }
+
+  if (reports.length === 0) {
+    return (
+      <p className="text-center text-muted-foreground py-8">
+        No interview reports yet. Complete an interview to see your results!
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {reports.map((report) => (
+        <div
+          key={report.id}
+          className="p-4 rounded-lg border bg-card"
+        >
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="font-medium">{report.drive?.name || 'Interview Drive'}</p>
+              <p className="text-sm text-muted-foreground">
+                {report.organization?.name || 'Organization'} • {report.drive?.role || 'Role'}
+              </p>
+            </div>
+            <Badge className={getRecommendationBadge(report.recommendation)}>
+              {getRecommendationLabel(report.recommendation)}
+            </Badge>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-4 mb-3">
+            <div className="text-center">
+              <div className="text-lg font-bold">{report.technicalScore}/100</div>
+              <div className="text-xs text-muted-foreground">Technical</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold">{report.communicationScore}/100</div>
+              <div className="text-xs text-muted-foreground">Communication</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold">{report.overallScore}/100</div>
+              <div className="text-xs text-muted-foreground">Overall</div>
+            </div>
+          </div>
+          
+          <div className="text-xs text-muted-foreground">
+            Generated: {new Date(report.generatedAt).toLocaleDateString()}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function StudentDashboard() {
   const params = useParams();
   const studentId = params.studentId as string;
@@ -374,6 +493,21 @@ export default function StudentDashboard() {
               </div>
             );
           })()}
+        </CardContent>
+      </Card>
+
+      {/* Interview Reports */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Your Interview Reports</CardTitle>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/student/${studentId}/reports`}>View All →</Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <RecentReports studentId={studentId} />
         </CardContent>
       </Card>
       </div>

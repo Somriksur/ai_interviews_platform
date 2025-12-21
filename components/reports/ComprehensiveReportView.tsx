@@ -61,6 +61,10 @@ interface ComprehensiveReport {
 interface ComprehensiveReportViewProps {
   report: ComprehensiveReport | null;
   expanded?: boolean;
+  showSelectionButtons?: boolean;
+  onSelect?: (studentId: string, score: number) => void;
+  onReject?: (studentId: string, score: number) => void;
+  selectionStatus?: 'selected' | 'rejected' | null;
 }
 
 /**
@@ -122,7 +126,14 @@ function MetricCard({ label, value, max = 100 }: { label: string; value: number;
  * - Language Quality
  * - AI Insights
  */
-export function ComprehensiveReportView({ report, expanded = false }: ComprehensiveReportViewProps) {
+export function ComprehensiveReportView({ 
+  report, 
+  expanded = false, 
+  showSelectionButtons = false,
+  onSelect,
+  onReject,
+  selectionStatus 
+}: ComprehensiveReportViewProps) {
   const [isExpanded, setIsExpanded] = useState(expanded);
 
   if (!report) {
@@ -141,13 +152,42 @@ export function ComprehensiveReportView({ report, expanded = false }: Comprehens
       <div className="p-4 bg-muted/50 rounded-lg">
         <div className="flex items-center justify-between mb-3">
           <h4 className="font-semibold text-lg">Interview Performance</h4>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? '▼ Show Less' : '▶ Show More'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {showSelectionButtons && selectionStatus === null && (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => onSelect?.(report.studentId, report.overallScore)}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  ✓ Select
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => onReject?.(report.studentId, report.overallScore)}
+                >
+                  ✗ Reject
+                </Button>
+              </div>
+            )}
+            {selectionStatus && (
+              <div className={`px-3 py-1 rounded text-xs font-medium ${
+                selectionStatus === 'selected' 
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+              }`}>
+                {selectionStatus === 'selected' ? '✓ Selected' : '✗ Rejected'}
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? '▼ Show Less' : '▶ Show More'}
+            </Button>
+          </div>
         </div>
 
         {/* Key Metrics Grid */}

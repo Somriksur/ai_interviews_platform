@@ -43,6 +43,60 @@ export async function POST(
         respondedAt: new Date(),
       });
 
+    // Update the interview drive status when college responds
+    if (notificationData?.driveId) {
+      try {
+        // Get all notifications for this drive to check overall status
+        const allNotificationsForDrive = await db
+          .collection('driveNotifications')
+          .where('driveId', '==', notificationData.driveId)
+          .get();
+
+        const notifications = allNotificationsForDrive.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          // Update current notification status in memory
+          status: doc.id === notificationId ? newStatus : doc.data().status
+        }));
+
+        const confirmedCount = notifications.filter(n => n.status === 'confirmed').length;
+        const declinedCount = notifications.filter(n => n.status === 'declined').length;
+        const totalNotifications = notifications.length;
+
+        let driveStatus = 'pending';
+        let updateData: any = {};
+
+        if (confirmedCount >= 1) {
+          // At least one college confirmed - drive is active
+          driveStatus = 'active';
+          updateData = {
+            status: 'active',
+            activatedAt: new Date(),
+          };
+        } else if (declinedCount === totalNotifications && totalNotifications > 0) {
+          // All colleges declined - drive is cancelled
+          driveStatus = 'cancelled';
+          updateData = {
+            status: 'cancelled',
+            cancelledAt: new Date(),
+          };
+        }
+
+        // Update drive status if it changed
+        if (driveStatus !== 'pending') {
+          await db
+            .collection('interview_drives')
+            .doc(notificationData.driveId)
+            .update(updateData);
+          
+          console.log(`✅ Interview drive ${notificationData.driveId} marked as ${driveStatus}`);
+        }
+      } catch (error) {
+        console.error('❌ Error updating drive status:', error);
+        // Don't fail the notification response if drive update fails
+      }
+    }
+
     console.log(`✅ Drive notification ${notificationId} ${newStatus}`);
 
     return NextResponse.json({

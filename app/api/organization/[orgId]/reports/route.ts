@@ -15,41 +15,26 @@ export async function GET(
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Build query - check both evaluation_reports and placement_reports
-    // First, get evaluation reports
-    let evalQuery = db
-      .collection('evaluation_reports')
-      .where('sentTo.organizationId', '==', orgId);
-    
-    // Also get placement reports
-    let placementQuery = db
-      .collection('placement_reports')
-      .where('organizationId', '==', orgId);
+    console.log(`📊 Fetching reports for organization: ${orgId}`);
 
-    // Apply filters to both queries
+    // Get evaluation reports (our advanced NLP reports)
+    let evalQuery = db.collection('evaluation_reports');
+    
+    // Apply filters
     if (studentId) {
       evalQuery = evalQuery.where('studentId', '==', studentId);
-      placementQuery = placementQuery.where('studentId', '==', studentId);
     }
     if (driveId) {
       evalQuery = evalQuery.where('driveId', '==', driveId);
-      placementQuery = placementQuery.where('driveId', '==', driveId);
     }
 
-    // Execute both queries
-    const [evalSnapshot, placementSnapshot] = await Promise.all([
-      evalQuery.orderBy('createdAt', 'desc').get(),
-      placementQuery.orderBy('generatedAt', 'desc').get()
-    ]);
+    const evalSnapshot = await evalQuery.orderBy('aiMetadata.evaluatedAt', 'desc').get();
+    console.log(`📊 Found ${evalSnapshot.size} evaluation reports`);
 
-    // Combine both types of reports
-    const allDocs = [...evalSnapshot.docs, ...placementSnapshot.docs];
-
-    // Get reports with additional data
+    // Process reports and get additional data
     const reports = await Promise.all(
-      allDocs.map(async (doc) => {
+      evalSnapshot.docs.map(async (doc) => {
         const reportData = doc.data();
-        const isEvalReport = doc.ref.parent.id === 'evaluation_reports';
         
         // Get student details
         let studentData = null;
@@ -61,32 +46,17 @@ export async function GET(
           if (studentDoc.exists) {
             studentData = {
               id: studentDoc.id,
-              name: studentDoc.data()?.name,
-              email: studentDoc.data()?.email,
-              rollNumber: studentDoc.data()?.rollNumber,
-              branch: studentDoc.data()?.branch,
-              cgpa: studentDoc.data()?.cgpa,
+              name: studentDoc.data()?.name || 'Unknown Student',
+              email: studentDoc.data()?.email || '',
+              rollNumber: studentDoc.data()?.rollNumber || '',
+              branch: studentDoc.data()?.branch || '',
+              cgpa: studentDoc.data()?.cgpa || 0,
             };
           }
         }
 
-        // Get college details
+        // Get college details from the drive
         let collegeData = null;
-        if (reportData.collegeId) {
-          const collegeDoc = await db
-            .collection('colleges')
-            .doc(reportData.collegeId)
-            .get();
-          if (collegeDoc.exists) {
-            collegeData = {
-              id: collegeDoc.id,
-              name: collegeDoc.data()?.name,
-              location: collegeDoc.data()?.location,
-            };
-          }
-        }
-
-        // Get interview drive details
         let driveData = null;
         if (reportData.driveId) {
           const driveDoc = await db
@@ -94,49 +64,145 @@ export async function GET(
             .doc(reportData.driveId)
             .get();
           if (driveDoc.exists) {
+            const drive = driveDoc.data();
             driveData = {
               id: driveDoc.id,
-              name: driveDoc.data()?.name,
-              role: driveDoc.data()?.role,
+              name: drive?.name || 'Interview Drive',
+              role: drive?.role || 'Software Engineer',
             };
+
+            // Check if this drive belongs to our organization
+            if (drive?.organizationId !== orgId) {
+              return null; // Skip reports not belonging to this organization
+            }
+
+            // Get college details from the first college in the drive
+            if (drive?.colleges && drive.colleges.length > 0) {
+              const collegeDoc = await db
+                .collection('colleges')
+                .doc(drive.colleges[0])
+                .get();
+              if (collegeDoc.exists) {
+                collegeData = {
+                  id: collegeDoc.id,
+                  name: collegeDoc.data()?.name || 'Unknown College',
+                  location: collegeDoc.data()?.location || '',
+                };
+              }
+            }
           }
         }
 
         // Filter by date if provided
-        const generatedAt = isEvalReport 
-          ? (reportData.createdAt?.toDate?.() || new Date(reportData.createdAt))
-          : (reportData.generatedAt?.toDate?.() || new Date(reportData.generatedAt));
+        const evaluatedAt = reportData.aiMetadata?.evaluatedAt?.toDate?.() || 
+                           new Date(reportData.aiMetadata?.evaluatedAt) ||
+                           reportData.createdAt?.toDate?.() ||
+                           new Date();
         
-        if (startDate && generatedAt < new Date(startDate)) {
+        if (startDate && evaluatedAt < new Date(startDate)) {
           return null;
         }
-        if (endDate && generatedAt > new Date(endDate)) {
+        if (endDate && evaluatedAt > new Date(endDate)) {
           return null;
+        }
+
+        // Map advanced NLP data to display format
+        const scores = reportData.scores || {};
+        const feedback = reportData.feedback || {};
+        const insights = reportData.insights || {};
+        const emotionAnalysis = reportData.emotionAnalysis || {};
+
+        // Determine placement category based on overall score and recommendation
+        let placementCategory = 'Not Suitable';
+        let salaryBand = 'low';
+        
+        if (reportData.recommendation === 'highly-recommended') {
+          placementCategory = 'Highly Recommended';
+          salaryBand = 'high';
+        } else if (reportData.recommendation === 'recommended') {
+          placementCategory = 'Recommended';
+          salaryBand = 'medium';
+        } else if (reportData.recommendation === 'consider') {
+          placementCategory = 'Consider';
+          salaryBand = 'medium';
         }
 
         return {
           id: doc.id,
-          ...reportData,
-          generatedAt: generatedAt.toISOString(),
-          reportType: isEvalReport ? 'evaluation' : 'placement',
+          // Map to expected format for UI compatibility
+          technicalScore: scores.technical || 0,
+          communicationScore: scores.communication || 0,
+          problemSolvingScore: scores.problemSolving || 0,
+          overallScore: scores.overall || 0,
+          
+          // New technical correctness scores
+          technicalCorrectness: scores.technicalCorrectness || 0,
+          conceptualUnderstanding: scores.conceptualUnderstanding || 0,
+          practicalApplication: scores.practicalApplication || 0,
+          
+          // Advanced NLP insights
+          emotionalIntelligence: insights.emotionalIntelligence || 0,
+          stressResilience: insights.stressResilience || 0,
+          culturalFit: insights.culturalFit || 0,
+          leadershipPotential: insights.leadershipPotential || 0,
+          teamworkAbility: insights.teamworkAbility || 0,
+          
+          // Emotion analysis
+          emotionalStability: emotionAnalysis.emotionalStability || 0,
+          communicationEffectiveness: emotionAnalysis.communicationEffectiveness || 0,
+          overallWellbeing: emotionAnalysis.overallWellbeing || 0,
+          dominantEmotions: emotionAnalysis.dominantEmotions || [],
+          
+          // Confidence analysis
+          overallConfidence: reportData.confidenceAnalysis?.metrics?.overallConfidence || 0,
+          confidenceTrend: reportData.confidenceAnalysis?.metrics?.confidenceTrend || 'stable',
+          
+          // Placement info
+          salaryBand,
+          placementCategory,
+          recommendation: reportData.recommendation || 'not-recommended',
+          
+          // Feedback
+          strengths: feedback.strengths || [],
+          improvements: feedback.improvements || [],
+          detailedAnalysis: feedback.detailedAnalysis || '',
+          
+          // Metadata
+          generatedAt: evaluatedAt.toISOString(),
+          reportType: 'advanced_nlp',
+          processingTime: reportData.aiMetadata?.processingTime || 0,
+          nlpVersion: reportData.aiMetadata?.nlpVersion || '3.0.0',
+          confidenceScore: reportData.aiMetadata?.confidenceScore || 0,
+          
+          // Related data
           student: studentData,
           college: collegeData,
           drive: driveData,
+          
+          // Full report data for detailed view
+          fullReport: reportData,
         };
       })
     );
 
-    // Filter out null values (from date filtering)
+    // Filter out null values (from organization filtering and date filtering)
     const filteredReports = reports.filter(report => report !== null);
+
+    console.log(`✅ Returning ${filteredReports.length} processed reports`);
 
     return NextResponse.json({ 
       reports: filteredReports,
       total: filteredReports.length,
+      metadata: {
+        organizationId: orgId,
+        generatedAt: new Date().toISOString(),
+        reportType: 'advanced_nlp_evaluation',
+      }
     });
   } catch (error) {
-    console.error('Error fetching organization reports:', error);
+    console.error('❌ Error fetching organization reports:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch reports' },
+      { error: 'Failed to fetch reports', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

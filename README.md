@@ -28,7 +28,6 @@ A comprehensive Next.js platform for managing campus placements with AI-powered 
 - [Contributing](#contributing)
 - [Roadmap](#roadmap)
 - [License](#license)
-
 ## Quick Start
 
 ```bash

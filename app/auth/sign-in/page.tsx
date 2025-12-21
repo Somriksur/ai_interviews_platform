@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -293,12 +294,12 @@ export default function SignInPage() {
 
         {!isSignUp && (
           <div className="mt-4 text-center">
-            <a
+            <Link
               href="/student/register"
               className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
             >
               New student? Register with your college →
-            </a>
+            </Link>
           </div>
         )}
       </Card>

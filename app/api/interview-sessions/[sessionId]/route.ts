@@ -89,13 +89,25 @@ export async function PATCH(
     console.log(`✅ Updated interview session: ${sessionId}`);
 
     // Automatically trigger NLP evaluation when interview is completed
-    if (status === 'completed' && !updateData.evaluationTriggered) {
-      console.log(`🤖 Triggering automatic NLP evaluation for session: ${sessionId}`);
+    if (status === 'completed') {
+      // Check if evaluation was already triggered
+      const updatedSessionDoc = await db
+        .collection("interview_sessions")
+        .doc(sessionId)
+        .get();
       
-      // Trigger evaluation asynchronously (don't wait for it)
-      triggerEvaluation(sessionId).catch(error => {
-        console.error('❌ Failed to trigger evaluation:', error);
-      });
+      const updatedSessionData = updatedSessionDoc.data();
+      
+      if (!updatedSessionData?.evaluationTriggered) {
+        console.log(`🤖 Triggering automatic NLP evaluation for session: ${sessionId}`);
+        
+        // Trigger evaluation asynchronously (don't wait for it)
+        triggerEvaluation(sessionId).catch(error => {
+          console.error('❌ Failed to trigger evaluation:', error);
+        });
+      } else {
+        console.log(`✅ Evaluation already triggered for session: ${sessionId}`);
+      }
     }
 
     return NextResponse.json({

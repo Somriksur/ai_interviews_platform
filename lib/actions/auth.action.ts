@@ -105,15 +105,24 @@ export async function signIn(params: SignInParams) {
 
         // Get user data from Firestore
         const userDoc = await db.collection("users").doc(userRecord.uid).get();
+        let userData;
+        
         if (!userDoc.exists) {
-            console.error("User document not found in Firestore");
-            return {
-                success: false,
-                message: "User data not found. Please contact support.",
+            console.log("User document not found in Firestore, creating new user document...");
+            // Create a new user document with default data
+            userData = {
+                name: userRecord.displayName || email.split('@')[0],
+                email: userRecord.email || email,
+                role: "student", // Default role
+                createdAt: new Date().toISOString(),
             };
+            
+            // Save the user document
+            await db.collection("users").doc(userRecord.uid).set(userData);
+            console.log("Created new user document:", userData);
+        } else {
+            userData = userDoc.data();
         }
-
-        const userData = userDoc.data();
         console.log("User data retrieved:", { role: userData?.role, name: userData?.name });
 
         // Set session cookie

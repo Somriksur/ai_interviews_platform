@@ -3,6 +3,7 @@
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface Report {
@@ -44,6 +45,8 @@ export default function CollegeReportsPage({
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReports, setSelectedReports] = useState<string[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [reportsToDelete, setReportsToDelete] = useState<string[]>([]);
   
   // Filters
   const [studentFilter, setStudentFilter] = useState("");
@@ -107,6 +110,33 @@ export default function CollegeReportsPage({
     } catch (error) {
       console.error("Error exporting reports:", error);
       toast.error("Failed to export reports");
+    }
+  };
+
+  const handleDeleteReports = async () => {
+    try {
+      const deletePromises = reportsToDelete.map(reportId =>
+        fetch(`/api/students/${reports.find(r => r.id === reportId)?.student?.id}/reports/${reportId}`, {
+          method: 'DELETE',
+        })
+      );
+
+      const results = await Promise.all(deletePromises);
+      const successCount = results.filter(r => r.ok).length;
+
+      if (successCount === reportsToDelete.length) {
+        toast.success(`${successCount} report(s) deleted successfully`);
+        setReports(reports.filter(r => !reportsToDelete.includes(r.id)));
+        setSelectedReports(selectedReports.filter(id => !reportsToDelete.includes(id)));
+      } else {
+        toast.error(`Only ${successCount} of ${reportsToDelete.length} reports were deleted`);
+      }
+
+      setShowDeleteDialog(false);
+      setReportsToDelete([]);
+    } catch (error) {
+      console.error("Error deleting reports:", error);
+      toast.error("Failed to delete reports");
     }
   };
 
@@ -230,6 +260,16 @@ export default function CollegeReportsPage({
               >
                 📄 Export PDF
               </Button>
+              <Button
+                onClick={() => {
+                  setReportsToDelete([...selectedReports]);
+                  setShowDeleteDialog(true);
+                }}
+                disabled={selectedReports.length === 0}
+                variant="destructive"
+              >
+                🗑️ Delete Selected
+              </Button>
             </div>
           </div>
         </div>
@@ -276,14 +316,18 @@ export default function CollegeReportsPage({
                     </div>
 
                     {/* Scores */}
-                    <div className="grid grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded">
+                    <div className="grid grid-cols-4 gap-4 mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded">
                       <div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">Technical Score</div>
                         <div className="text-2xl font-bold">{report.technicalScore}/100</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">Communication</div>
-                        <div className="text-2xl font-bold">{report.communicationRating}/100</div>
+                        <div className="text-2xl font-bold">{report.communicationScore}/100</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Problem Solving</div>
+                        <div className="text-2xl font-bold">{report.problemSolvingScore}/100</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">Overall Score</div>
@@ -291,8 +335,63 @@ export default function CollegeReportsPage({
                       </div>
                     </div>
 
-                    {/* Strengths & Weaknesses */}
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Technical Correctness Scores */}
+                    <div className="grid grid-cols-3 gap-4 mb-4 p-4 bg-green-50 dark:bg-green-900/20 rounded">
+                      <div>
+                        <div className="text-sm text-green-600 dark:text-green-400">Technical Correctness</div>
+                        <div className="text-xl font-bold text-green-600 dark:text-green-400">{report.technicalCorrectness || 0}/100</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-green-600 dark:text-green-400">Conceptual Understanding</div>
+                        <div className="text-xl font-bold text-green-600 dark:text-green-400">{report.conceptualUnderstanding || 0}/100</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-green-600 dark:text-green-400">Practical Application</div>
+                        <div className="text-xl font-bold text-green-600 dark:text-green-400">{report.practicalApplication || 0}/100</div>
+                      </div>
+                    </div>
+
+                    {/* Advanced NLP Insights */}
+                    <div className="grid grid-cols-3 gap-4 mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded">
+                      <div>
+                        <div className="text-sm text-blue-600 dark:text-blue-400">Emotional Intelligence</div>
+                        <div className="text-xl font-bold">{report.emotionalIntelligence || 0}/100</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-blue-600 dark:text-blue-400">Stress Resilience</div>
+                        <div className="text-xl font-bold">{report.stressResilience || 0}/100</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-blue-600 dark:text-blue-400">Cultural Fit</div>
+                        <div className="text-xl font-bold">{report.culturalFit || 0}/100</div>
+                      </div>
+                    </div>
+
+                    {/* Emotion Analysis */}
+                    {report.dominantEmotions && report.dominantEmotions.length > 0 && (
+                      <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded">
+                        <div className="text-sm font-medium mb-2 text-purple-600 dark:text-purple-400">
+                          🎭 Emotional Profile
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {report.dominantEmotions.slice(0, 4).map((emotion: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded"
+                            >
+                              {emotion}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-2 text-xs text-purple-600 dark:text-purple-400">
+                          Confidence: {report.overallConfidence || 0}/100 • 
+                          Trend: {report.confidenceTrend || 'stable'}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Strengths & Improvements */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
                         <div className="text-sm font-medium mb-2 text-green-600 dark:text-green-400">
                           ✓ Strengths
@@ -310,18 +409,25 @@ export default function CollegeReportsPage({
                           ⚠ Areas for Improvement
                         </div>
                         <ul className="text-sm space-y-1">
-                          {report.weaknesses?.slice(0, 3).map((weakness, idx) => (
+                          {report.improvements?.slice(0, 3).map((improvement, idx) => (
                             <li key={idx} className="text-gray-700 dark:text-gray-300">
-                              • {weakness}
+                              • {improvement}
                             </li>
                           ))}
                         </ul>
                       </div>
                     </div>
 
-                    {/* Generated Date */}
-                    <div className="mt-4 text-sm text-gray-500">
-                      Generated: {new Date(report.generatedAt).toLocaleString()}
+                    {/* AI Metadata */}
+                    <div className="text-xs text-gray-500 border-t pt-2">
+                      <div className="flex items-center justify-between">
+                        <span>Generated: {new Date(report.generatedAt).toLocaleString()}</span>
+                        <div className="flex items-center gap-4">
+                          <span>🤖 NLP v{report.nlpVersion || '3.0.0'}</span>
+                          <span>⚡ {report.processingTime || 0}ms</span>
+                          <span>🎯 {Math.round((report.confidenceScore || 0) * 100)}% confidence</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -329,6 +435,40 @@ export default function CollegeReportsPage({
             ))}
           </div>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Reports</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete {reportsToDelete.length} report(s)? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                This will permanently delete the selected evaluation reports and remove them from all dashboards.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setReportsToDelete([]);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteReports}
+              >
+                Delete {reportsToDelete.length} Report(s)
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
