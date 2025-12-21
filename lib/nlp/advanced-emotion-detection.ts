@@ -124,9 +124,9 @@ export interface AdvancedEmotionReport {
  * Advanced emotion detection using multiple linguistic models
  */
 export class AdvancedEmotionDetector {
-  private emotionLexicon: Map<string, EmotionVector>;
-  private personalityMarkers: Map<string, Partial<PsychologicalProfile>>;
-  private stressIndicators: Map<string, number>;
+  private emotionLexicon!: Map<string, EmotionVector>;
+  private personalityMarkers!: Map<string, Partial<PsychologicalProfile>>;
+  private stressIndicators!: Map<string, number>;
   
   constructor() {
     this.initializeLexicons();
@@ -367,7 +367,6 @@ export class AdvancedEmotionDetector {
   
   private analyzeCommunication(processedText: string, originalTranscript: string[]): CommunicationAnalysis {
     const words = processedText.split(/\s+/);
-    const totalWords = words.length;
     
     return {
       articulation: this.calculateArticulation(originalTranscript),
@@ -437,7 +436,7 @@ export class AdvancedEmotionDetector {
   
   private analyzeTemporalPatterns(
     transcript: string[], 
-    timestamps?: Date[]
+    _timestamps?: Date[]
   ): { emotionalJourney: EmotionVector[], stressProgression: number[] } {
     const segmentSize = Math.max(1, Math.floor(transcript.length / 5));
     const emotionalJourney: EmotionVector[] = [];
@@ -772,9 +771,9 @@ export class AdvancedEmotionDetector {
   // Insight generation methods
   private generateInsights(
     emotions: EmotionVector,
-    psychology: PsychologicalProfile,
-    communication: CommunicationAnalysis,
-    stress: StressIndicators
+    _psychology: PsychologicalProfile,
+    _communication: CommunicationAnalysis,
+    _stress: StressIndicators
   ): { dominantEmotions: string[] } {
     const emotionEntries = Object.entries(emotions)
       .filter(([_, value]) => value > 30)
@@ -825,7 +824,7 @@ export class AdvancedEmotionDetector {
   
   private generateRecommendations(
     emotions: EmotionVector,
-    psychology: PsychologicalProfile,
+    _psychology: PsychologicalProfile,
     communication: CommunicationAnalysis,
     stress: StressIndicators
   ): {
