@@ -1,10 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { z } from "zod";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireOrganizationOwnership } from "@/lib/security/guards";
+
+const driveQuestionSchema = z
+  .object({
+    text: z.string().min(1).max(2000),
+    order: z.number().int().min(1).max(1000),
+    generatedBy: z.string().min(1).max(64),
+  })
+  .strict();
+
+const interviewDriveCreateSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    description: z.string().max(5000).optional(),
+    role: z.string().min(1).max(200),
+    colleges: z.array(z.string().min(1)).max(500).optional(),
+    questions: z.array(driveQuestionSchema).max(500).optional(),
+    aiMetadata: z.record(z.string(), z.unknown()).nullable().optional(),
+    interviewConfig: z.record(z.string(), z.unknown()).nullable().optional(),
+  })
+  .strict();
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId } = await params;
-    const { name, description, role, colleges, questions, aiMetadata, interviewConfig } = await request.json();
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
+
+    const rawBody = await request.json();
+    const parseResult = interviewDriveCreateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { name, description, role, colleges, questions, aiMetadata, interviewConfig } = parseResult.data;
 
     if (!name || !role) {
       return NextResponse.json(
@@ -110,7 +148,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId } = await params;
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
+
     const snapshot = await db
       .collection('interview_drives')
       .where('organizationId', '==', orgId)

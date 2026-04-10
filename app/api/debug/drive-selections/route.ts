@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireRole } from '@/lib/security/guards';
 
 /**
  * GET /api/debug/drive-selections
@@ -7,6 +9,11 @@ import { db as db } from '@/firebase/admin';
  */
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+    const roleError = requireRole(authResult.context, ["organization", "college"]);
+    if (roleError) return roleError;
+
     const searchParams = request.nextUrl.searchParams;
     const studentEmail = searchParams.get('studentEmail');
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/firebase/admin';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireStudentAccess } from "@/lib/security/guards";
 
 // GET /api/students/[studentId]/dashboard
 export async function GET(
@@ -7,7 +9,13 @@ export async function GET(
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { studentId } = await params;
+    const accessError = await requireStudentAccess(authResult.context, studentId);
+    if (accessError) return accessError;
+
     console.log('📊 Fetching dashboard data for student:', studentId);
 
     // Get student details
@@ -44,24 +52,15 @@ export async function GET(
       ...doc.data(),
     }));
 
-    // Also check old interviews collection
-    const interviewsSnapshot = await db
-      .collection('interviews')
-      .where('studentId', '==', studentId)
-      .get();
-
-    const interviews = interviewsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    // Combine both
-    const allInterviews = [...interviewSessions, ...interviews];
+    // Canonical source is interview_sessions only
+    const allInterviews = [...interviewSessions];
 
     // Calculate statistics
     const totalInterviews = allInterviews.length;
     const completedInterviews = allInterviews.filter((i: any) => i.status === 'completed');
-    const pendingInterviews = allInterviews.filter((i: any) => i.status === 'pending' || i.status === 'in_progress' || i.status === 'not_started');
+    const pendingInterviews = allInterviews.filter(
+      (i: any) => i.status === 'pending' || i.status === 'in_progress' || i.status === 'in-progress' || i.status === 'not_started'
+    );
     
     // Calculate average score from completed interviews
     const scoresFromCompleted = completedInterviews

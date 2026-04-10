@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireCollegeOwnership } from '@/lib/security/guards';
 
 /**
  * GET /api/colleges/[collegeId]/drive-selections
@@ -10,7 +12,12 @@ export async function GET(
   { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { collegeId } = await params;
+    const ownershipError = await requireCollegeOwnership(authResult.context, collegeId);
+    if (ownershipError) return ownershipError;
 
     console.log('🔍 Fetching drive selections for college:', collegeId);
 
@@ -24,7 +31,14 @@ export async function GET(
 
     console.log('📊 Found notifications:', notificationsSnapshot.size);
 
-    const notifications = [];
+    const notifications: Array<{
+      id: string;
+      action?: string;
+      status?: string;
+      createdAt?: Date | string;
+      respondedAt?: Date | string;
+      [key: string]: any;
+    }> = [];
     const studentIds = new Set<string>();
     const driveIds = new Set<string>();
     const orgIds = new Set<string>();

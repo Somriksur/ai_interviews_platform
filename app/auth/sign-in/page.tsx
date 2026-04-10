@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,12 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithPopup 
+  signInWithPopup,
+  fetchSignInMethodsForEmail
 } from "firebase/auth";
 import { signIn as serverSignIn, signUp as serverSignUp } from "@/lib/actions/auth.action";
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/onboarding";
@@ -32,21 +33,23 @@ export default function SignInPage() {
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    const password = formData.password;
 
     try {
       if (isSignUp) {
         // Sign up with Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(
           auth,
-          formData.email,
-          formData.password
+          normalizedEmail,
+          password
         );
 
         // Create user in Firestore
         const result = await serverSignUp({
           uid: userCredential.user.uid,
           name: formData.name,
-          email: formData.email,
+          email: normalizedEmail,
           role: formData.role,
         });
 
@@ -56,7 +59,7 @@ export default function SignInPage() {
           // Get ID token and sign in
           const idToken = await userCredential.user.getIdToken();
           const signInResult = await serverSignIn({
-            email: formData.email,
+            email: normalizedEmail,
             idToken,
           });
 
@@ -72,14 +75,14 @@ export default function SignInPage() {
         // Sign in with Firebase Auth
         const userCredential = await signInWithEmailAndPassword(
           auth,
-          formData.email,
-          formData.password
+          normalizedEmail,
+          password
         );
 
         // Get ID token and create session
         const idToken = await userCredential.user.getIdToken();
         const result = await serverSignIn({
-          email: formData.email,
+          email: normalizedEmail,
           idToken,
         });
 
@@ -103,8 +106,23 @@ export default function SignInPage() {
         toast.error("No account found with this email. Please sign up first.");
       } else if (error.code === "auth/wrong-password") {
         toast.error("Incorrect password. Please try again.");
+      } else if (error.code === "auth/invalid-credential") {
+        try {
+          const methods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
+          if (methods.length === 0) {
+            toast.error("No account exists for this email. Please sign up first.");
+          } else if (methods.includes("google.com") && !methods.includes("password")) {
+            toast.error("This account uses Google sign-in. Please use the Google button.");
+          } else {
+            toast.error("Invalid email or password. Please check and try again.");
+          }
+        } catch {
+          toast.error("Invalid email or password. Please check and try again.");
+        }
       } else if (error.code === "auth/email-already-in-use") {
         toast.error("This email is already in use. Please sign in instead.");
+      } else if (error.code === "auth/invalid-email") {
+        toast.error("Invalid email address.");
       } else if (error.code === "auth/weak-password") {
         toast.error("Password should be at least 6 characters.");
       } else {
@@ -304,5 +322,13 @@ export default function SignInPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-900" />}>
+      <SignInContent />
+    </Suspense>
   );
 }

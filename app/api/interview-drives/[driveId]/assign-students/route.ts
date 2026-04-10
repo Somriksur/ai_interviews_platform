@@ -1,13 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { z } from "zod";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireCollegeOwnership } from "@/lib/security/guards";
+
+const assignStudentsSchema = z
+  .object({
+    collegeId: z.string().min(1),
+    studentIds: z.array(z.string().min(1)).min(1).max(1000),
+  })
+  .strict();
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ driveId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { driveId } = await params;
-    const { collegeId, studentIds } = await request.json();
+    const rawBody = await request.json();
+    const parseResult = assignStudentsSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { collegeId, studentIds } = parseResult.data;
+
+    const accessError = await requireCollegeOwnership(authResult.context, collegeId);
+    if (accessError) return accessError;
 
     // Validate input
     if (!collegeId || !studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
@@ -27,12 +51,23 @@ export async function POST(
     }
 
     const driveData = driveDoc.data();
+    if (!Array.isArray(driveData?.colleges) || !driveData.colleges.includes(collegeId)) {
+      return NextResponse.json(
+        { error: 'Forbidden: drive is not assigned to this college' },
+        { status: 403 }
+      );
+    }
 
     // Create interview sessions for each student
     const batch = db.batch();
     const sessionIds: string[] = [];
 
     for (const studentId of studentIds) {
+      const studentDoc = await db.collection('students').doc(studentId).get();
+      if (!studentDoc.exists || studentDoc.data()?.collegeId !== collegeId) {
+        continue;
+      }
+
       // Check if student already has a session for this drive
       const existingSession = await db
         .collection('interview_sessions')

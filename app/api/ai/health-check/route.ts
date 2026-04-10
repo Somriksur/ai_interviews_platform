@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole } from "@/lib/security/guards";
 
 /**
  * GET /api/ai/health-check
@@ -6,6 +8,11 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+    const roleError = requireRole(authResult.context, ["organization", "college"]);
+    if (roleError) return roleError;
+
     const SPACE_ENDPOINT = process.env.HUGGINGFACE_ENDPOINT_URL;
     
     if (!SPACE_ENDPOINT) {
@@ -104,6 +111,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+    const roleError = requireRole(authResult.context, ["organization", "college"]);
+    if (roleError) return roleError;
+
     const SPACE_ENDPOINT = process.env.HUGGINGFACE_ENDPOINT_URL;
     
     if (!SPACE_ENDPOINT) {

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireOrganizationOwnership } from "@/lib/security/guards";
+import { withCanonicalScores } from "@/lib/utils/evaluation-report";
 
 /**
  * GET /api/organization/[orgId]/interview-drives/[driveId]/reports
@@ -10,7 +13,12 @@ export async function GET(
   { params }: { params: Promise<{ orgId: string; driveId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId, driveId } = await params;
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
 
     // Verify the drive belongs to this organization
     const driveDoc = await db
@@ -33,22 +41,12 @@ export async function GET(
       );
     }
 
-    // Get evaluation reports for this drive
+    // Get evaluation reports for this drive (single source of truth)
     const evalReportsSnapshot = await db
       .collection('evaluation_reports')
       .where('driveId', '==', driveId)
       .orderBy('createdAt', 'desc')
       .get();
-
-    // Get placement reports for this drive
-    const placementReportsSnapshot = await db
-      .collection('placement_reports')
-      .where('driveId', '==', driveId)
-      .orderBy('generatedAt', 'desc')
-      .get();
-
-    // Combine both types of reports
-    const allDocs = [...evalReportsSnapshot.docs, ...placementReportsSnapshot.docs];
 
     // Get all selection records for this drive
     const selectionsSnapshot = await db
@@ -64,9 +62,8 @@ export async function GET(
 
     // Get reports with student details
     const reports = await Promise.all(
-      allDocs.map(async (doc) => {
-        const reportData = doc.data();
-        const isEvalReport = doc.ref.parent.id === 'evaluation_reports';
+      evalReportsSnapshot.docs.map(async (doc) => {
+        const reportData = withCanonicalScores(doc.data());
 
         // Get student details
         let studentData = null;
@@ -91,9 +88,7 @@ export async function GET(
 
         // Get college details
         let collegeData = null;
-        const collegeId = isEvalReport 
-          ? reportData.sentTo?.collegeId 
-          : reportData.collegeId;
+        const collegeId = reportData.sentTo?.collegeId;
         
         if (collegeId) {
           const collegeDoc = await db
@@ -109,9 +104,8 @@ export async function GET(
           }
         }
 
-        const generatedAt = isEvalReport
-          ? (reportData.createdAt?.toDate?.() || new Date(reportData.createdAt))
-          : (reportData.generatedAt?.toDate?.() || new Date(reportData.generatedAt));
+        const generatedAt =
+          reportData.createdAt?.toDate?.() || new Date(reportData.createdAt);
 
         // Get selection status for this student
         const selectionStatus = selectionsMap.get(reportData.studentId) || null;
@@ -119,7 +113,7 @@ export async function GET(
         return {
           id: doc.id,
           ...reportData,
-          reportType: isEvalReport ? 'evaluation' : 'placement',
+          reportType: 'evaluation',
           generatedAt: generatedAt.toISOString(),
           student: studentData,
           college: collegeData,

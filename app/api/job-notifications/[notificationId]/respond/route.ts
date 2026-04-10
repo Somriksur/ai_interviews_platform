@@ -1,20 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireRole } from '@/lib/security/guards';
+
+const respondSchema = z
+  .object({
+    action: z.enum(['approve', 'reject']),
+    notes: z.string().max(1000).optional(),
+  })
+  .strict();
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ notificationId: string }> }
 ) {
   try {
-    const { notificationId } = await params;
-    const { action, notes } = await request.json();
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
 
-    if (!action || !['approve', 'reject'].includes(action)) {
+    const roleError = requireRole(authResult.context, ['college']);
+    if (roleError) return roleError;
+
+    const { notificationId } = await params;
+    const rawBody = await request.json();
+    const parseResult = respondSchema.safeParse(rawBody);
+
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'Invalid action. Must be "approve" or "reject"' },
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
+    const { action, notes } = parseResult.data;
 
     // Get notification
     const notificationDoc = await db
@@ -31,6 +49,23 @@ export async function POST(
 
     const notificationData = notificationDoc.data();
     const newStatus = action === 'approve' ? 'approved' : 'rejected';
+
+    const ownedCollegeSnapshot = await db
+      .collection('colleges')
+      .where('adminId', '==', authResult.context.user.id)
+      .limit(1)
+      .get();
+
+    if (ownedCollegeSnapshot.empty) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const ownedCollege = ownedCollegeSnapshot.docs[0].data();
+    const ownedNormalizedCollegeName = (ownedCollege?.normalizedName || '').toLowerCase();
+    const notificationCollege = (notificationData?.normalizedCollegeName || '').toLowerCase();
+
+    if (!notificationCollege || notificationCollege !== ownedNormalizedCollegeName) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Update notification status
     await db

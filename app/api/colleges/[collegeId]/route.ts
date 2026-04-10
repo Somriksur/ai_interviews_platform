@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as db } from "@/firebase/admin";
 import { getCurrentUser } from "@/lib/actions/auth.action";
+import { getAuthContext } from "@/lib/security/auth-context";
 
 /**
  * GET /api/colleges/[collegeId]
@@ -11,6 +12,9 @@ export async function GET(
   { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { collegeId } = await params;
 
     const collegeDoc = await db.collection("colleges").doc(collegeId).get();
@@ -23,6 +27,22 @@ export async function GET(
     }
 
     const collegeData = collegeDoc.data();
+    const user = authResult.context.user;
+
+    if (user.role === "college" && collegeData?.adminId !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (user.role === "organization") {
+      const orgSnapshot = await db
+        .collection("organizations")
+        .where("adminId", "==", user.id)
+        .limit(1)
+        .get();
+      if (orgSnapshot.empty || collegeData?.organizationId !== orgSnapshot.docs[0].id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
 
     // Get stats
     const studentsSnapshot = await db

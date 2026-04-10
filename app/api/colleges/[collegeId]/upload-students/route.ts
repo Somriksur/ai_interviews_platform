@@ -1,15 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db, auth as adminAuth } from '@/firebase/admin';
+import { z } from "zod";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireCollegeOwnership } from "@/lib/security/guards";
+
+const uploadStudentRecordSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    email: z.string().email(),
+    rollNumber: z.string().min(1).max(64),
+    branch: z.string().max(120).optional(),
+    cgpa: z.union([z.number().min(0).max(10), z.string()]).optional(),
+    phone: z.string().max(32).optional(),
+  })
+  .strict();
+
+const uploadStudentsSchema = z
+  .object({
+    students: z.array(uploadStudentRecordSchema).min(1).max(5000),
+    jobPostingId: z.string().min(1),
+  })
+  .strict();
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { collegeId } = await params;
-    const body = await request.json();
-    
-    const { students, jobPostingId } = body;
+    const accessError = await requireCollegeOwnership(authResult.context, collegeId);
+    if (accessError) return accessError;
+    const rawBody = await request.json();
+    const parseResult = uploadStudentsSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { students, jobPostingId } = parseResult.data;
 
     if (!students || !Array.isArray(students) || students.length === 0) {
       return NextResponse.json(

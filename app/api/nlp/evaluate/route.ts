@@ -2,13 +2,32 @@
 // Triggers evaluation of interview transcripts and generates reports
 
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db as db } from '@/firebase/admin';
 import { evaluateWithRetry } from '@/lib/services/nlp-evaluation.service';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole, requireStudentAccess } from "@/lib/security/guards";
+import { withCanonicalScores } from "@/lib/utils/evaluation-report";
+
+const evaluateSchema = z.object({ sessionId: z.string().min(1) }).strict();
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { sessionId } = body;
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
+    const roleError = requireRole(authResult.context, ["organization", "college"]);
+    if (roleError) return roleError;
+
+    const rawBody = await request.json();
+    const parseResult = evaluateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { sessionId } = parseResult.data;
 
     if (!sessionId) {
       return NextResponse.json(
@@ -97,7 +116,7 @@ export async function POST(request: NextRequest) {
     const evaluationReport = await evaluateWithRetry(evaluationInput, 3);
 
     // Store evaluation report in Firestore
-    const reportData = {
+    const reportData = withCanonicalScores({
       ...evaluationReport,
       sentTo: {
         collegeId: driveData.colleges?.[0] || null,
@@ -106,7 +125,7 @@ export async function POST(request: NextRequest) {
       },
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    });
 
     const reportRef = await db
       .collection('evaluation_reports')
@@ -145,6 +164,12 @@ export async function POST(request: NextRequest) {
 // GET endpoint to retrieve evaluation report
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
+    const roleError = requireRole(authResult.context, ["student", "college", "organization"]);
+    if (roleError) return roleError;
+
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
     const reportId = searchParams.get('reportId');
@@ -170,6 +195,12 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      const accessError = await requireStudentAccess(
+        authResult.context,
+        reportDoc.data()?.studentId
+      );
+      if (accessError) return accessError;
+
       return NextResponse.json({
         id: reportDoc.id,
         ...reportDoc.data(),
@@ -191,6 +222,8 @@ export async function GET(request: NextRequest) {
       }
 
       const sessionData = sessionDoc.data();
+      const accessError = await requireStudentAccess(authResult.context, sessionData?.studentId);
+      if (accessError) return accessError;
       
       if (!sessionData?.evaluationId) {
         return NextResponse.json(

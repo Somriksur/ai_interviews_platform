@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireRole } from '@/lib/security/guards';
+
+const respondSchema = z
+  .object({
+    response: z.enum(['acknowledged', 'retag_requested']),
+    notes: z.string().max(1000).optional(),
+  })
+  .strict();
 
 /**
  * POST /api/college-notifications/[notificationId]/respond
@@ -10,23 +20,38 @@ export async function POST(
   { params }: { params: Promise<{ notificationId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
+    const roleError = requireRole(authResult.context, ['college']);
+    if (roleError) return roleError;
+
     const { notificationId } = await params;
-    const body = await request.json();
-    const { collegeId, response, notes } = body;
+    const rawBody = await request.json();
+    const parseResult = respondSchema.safeParse(rawBody);
 
-    if (!collegeId || !response) {
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
 
-    if (response !== 'acknowledged' && response !== 'retag_requested') {
+    const { response, notes } = parseResult.data;
+
+    const ownedCollegeSnapshot = await db
+      .collection('colleges')
+      .where('adminId', '==', authResult.context.user.id)
+      .limit(1)
+      .get();
+
+    if (ownedCollegeSnapshot.empty) {
       return NextResponse.json(
-        { error: 'Invalid response. Must be "acknowledged" or "retag_requested"' },
-        { status: 400 }
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
+    const collegeId = ownedCollegeSnapshot.docs[0].id;
 
     // Get the notification
     const notificationDoc = await db
@@ -46,7 +71,7 @@ export async function POST(
     // Verify the notification belongs to this college
     if (notificationData?.collegeId !== collegeId) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Forbidden' },
         { status: 403 }
       );
     }

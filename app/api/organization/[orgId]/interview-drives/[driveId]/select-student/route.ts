@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { z } from "zod";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireOrganizationOwnership } from "@/lib/security/guards";
+
+const selectStudentSchema = z
+  .object({
+    studentId: z.string().min(1),
+    collegeId: z.string().min(1).optional(),
+    action: z.enum(["selected", "rejected"]),
+    score: z.number().min(0).max(100).nullable().optional(),
+  })
+  .strict();
 
 /**
  * POST /api/organization/[orgId]/interview-drives/[driveId]/select-student
@@ -10,9 +22,21 @@ export async function POST(
   { params }: { params: Promise<{ orgId: string; driveId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId, driveId } = await params;
-    const body = await request.json();
-    const { studentId, collegeId: providedCollegeId, action, score } = body;
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
+    const rawBody = await request.json();
+    const parseResult = selectStudentSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { studentId, collegeId: providedCollegeId, action, score } = parseResult.data;
 
     if (!studentId || !action) {
       return NextResponse.json(

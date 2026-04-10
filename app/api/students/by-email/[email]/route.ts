@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireEmailMatch } from '@/lib/security/guards';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ email: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { email } = await params;
-    const decodedEmail = decodeURIComponent(email);
+    const decodedEmail = decodeURIComponent(email).toLowerCase();
 
-    console.log('🔍 Looking up student by email:', decodedEmail);
+    const emailError = requireEmailMatch(authResult.context, decodedEmail);
+    if (emailError) return emailError;
 
-    // Query students collection by email
     const studentsSnapshot = await db
       .collection('students')
       .where('email', '==', decodedEmail)
@@ -19,7 +24,6 @@ export async function GET(
       .get();
 
     if (studentsSnapshot.empty) {
-      console.log('❌ No student found with email:', decodedEmail);
       return NextResponse.json(
         { error: 'Student not found' },
         { status: 404 }
@@ -27,14 +31,10 @@ export async function GET(
     }
 
     const studentDoc = studentsSnapshot.docs[0];
-    const studentData = {
+    return NextResponse.json({
       id: studentDoc.id,
       ...studentDoc.data(),
-    };
-
-    console.log('✅ Found student:', studentData.id);
-
-    return NextResponse.json(studentData);
+    });
   } catch (error) {
     console.error('Error fetching student by email:', error);
     return NextResponse.json(

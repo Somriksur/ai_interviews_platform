@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireStudentAccess } from '@/lib/security/guards';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { studentId } = await params;
+    const accessError = await requireStudentAccess(authResult.context, studentId);
+    if (accessError) return accessError;
     
     // Fetch interview sessions for this student
     const sessionsSnapshot = await db
@@ -73,11 +80,16 @@ export async function GET(
  * Clear all interview history for a student
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { studentId } = await params;
+    const accessError = await requireStudentAccess(authResult.context, studentId);
+    if (accessError) return accessError;
     
     console.log(`🗑️ Clearing interview history for student: ${studentId}`);
     

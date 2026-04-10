@@ -1,11 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
 import { normalizeCollegeName } from '@/lib/services/college-name.service';
+import { z } from "zod";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireOrganizationOwnership } from "@/lib/security/guards";
+
+const createCollegeSchema = z
+  .object({
+    name: z.string().min(3).max(200),
+    location: z.string().max(255).optional(),
+    contactEmail: z.string().email(),
+    contactPhone: z.string().max(32).optional(),
+    adminId: z.string().min(1).optional(),
+  })
+  .strict();
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId } = await params;
-    const { name, location, contactEmail, contactPhone, adminId } = await request.json();
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
+    const rawBody = await request.json();
+    const parseResult = createCollegeSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { name, location, contactEmail, contactPhone, adminId } = parseResult.data;
 
     if (!name || !contactEmail) {
       return NextResponse.json(
@@ -64,7 +90,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId } = await params;
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
+
     console.log(`🔍 Fetching colleges for organization: ${orgId}`);
     
     const snapshot = await db

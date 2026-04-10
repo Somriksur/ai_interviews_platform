@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
 import { matchStudentWithJobs } from '@/lib/services/categorization.service';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireStudentAccess } from '@/lib/security/guards';
+import { withCanonicalScores } from '@/lib/utils/evaluation-report';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
-    const { studentId } = await params;
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
 
-    // Get student's latest report
+    const { studentId } = await params;
+    const accessError = await requireStudentAccess(authResult.context, studentId);
+    if (accessError) return accessError;
+
     const reportsSnapshot = await db
-      .collection('placement_reports')
+      .collection('evaluation_reports')
       .where('studentId', '==', studentId)
-      .orderBy('generatedAt', 'desc')
+      .orderBy('createdAt', 'desc')
       .limit(1)
       .get();
 
@@ -24,9 +31,19 @@ export async function GET(
       );
     }
 
-    const reportData = reportsSnapshot.docs[0].data() as StudentReport;
+    const canonical = withCanonicalScores(reportsSnapshot.docs[0].data());
+    const reportData = {
+      technicalScore: canonical.technicalScore,
+      communicationRating: canonical.communicationScore,
+      overallScore: canonical.overallScore,
+      skillInsights: {
+        technical: [],
+        communication: [],
+        problemSolving: [],
+        leadership: [],
+      },
+    } as StudentReport;
 
-    // Get available job postings
     const jobsSnapshot = await db
       .collection('jobPostings')
       .where('status', '==', 'active')
@@ -40,7 +57,6 @@ export async function GET(
       minScore: doc.data().minScore || 50,
     }));
 
-    // Match student with jobs
     const recommendations = matchStudentWithJobs(reportData, availableJobs);
 
     return NextResponse.json({

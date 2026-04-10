@@ -1,12 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { z } from "zod";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireStudentAccess } from "@/lib/security/guards";
+
+const studentUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    email: z.string().email().optional(),
+    rollNumber: z.string().min(1).max(64).optional(),
+    branch: z.string().max(120).optional(),
+    year: z.number().int().min(1).max(8).optional(),
+    cgpa: z.number().min(0).max(10).optional(),
+    skills: z.array(z.string().min(1).max(64)).max(100).optional(),
+    phone: z.string().max(32).optional(),
+  })
+  .strict();
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { studentId } = await params;
+    const accessError = await requireStudentAccess(authResult.context, studentId);
+    if (accessError) return accessError;
+
     const studentDoc = await db.collection('students').doc(studentId).get();
 
     if (!studentDoc.exists) {
@@ -34,11 +56,33 @@ export async function PUT(
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { studentId } = await params;
-    const updates = await request.json();
+    const accessError = await requireStudentAccess(authResult.context, studentId);
+    if (accessError) return accessError;
+    const rawBody = await request.json();
+    const parseResult = studentUpdateSchema.safeParse(rawBody);
+
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const updates = parseResult.data;
 
     await db.collection('students').doc(studentId).update({
-      ...updates,
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...(updates.email !== undefined ? { email: updates.email.toLowerCase() } : {}),
+      ...(updates.rollNumber !== undefined ? { rollNumber: updates.rollNumber } : {}),
+      ...(updates.branch !== undefined ? { branch: updates.branch } : {}),
+      ...(updates.year !== undefined ? { year: updates.year } : {}),
+      ...(updates.cgpa !== undefined ? { cgpa: updates.cgpa } : {}),
+      ...(updates.skills !== undefined ? { skills: updates.skills } : {}),
+      ...(updates.phone !== undefined ? { phone: updates.phone } : {}),
       updatedAt: new Date(),
     });
 
@@ -57,7 +101,12 @@ export async function DELETE(
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { studentId } = await params;
+    const accessError = await requireStudentAccess(authResult.context, studentId);
+    if (accessError) return accessError;
     
     // Get student data before deleting
     const studentDoc = await db.collection('students').doc(studentId).get();

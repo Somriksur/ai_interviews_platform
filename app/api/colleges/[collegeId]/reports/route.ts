@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireCollegeOwnership } from '@/lib/security/guards';
+import { withCanonicalScores } from '@/lib/utils/evaluation-report';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { collegeId } = await params;
+    const ownershipError = await requireCollegeOwnership(authResult.context, collegeId);
+    if (ownershipError) return ownershipError;
+
     const searchParams = request.nextUrl.searchParams;
     
     // Get filter parameters
@@ -18,7 +27,7 @@ export async function GET(
     console.log(`📊 Fetching reports for college: ${collegeId}`);
 
     // Get evaluation reports (our advanced NLP reports)
-    let evalQuery = db.collection('evaluation_reports');
+    let evalQuery: FirebaseFirestore.Query = db.collection('evaluation_reports');
     
     // Apply filters
     if (studentId) {
@@ -34,7 +43,7 @@ export async function GET(
     // Process reports and get additional data
     const reports = await Promise.all(
       evalSnapshot.docs.map(async (doc) => {
-        const reportData = doc.data();
+        const reportData = withCanonicalScores(doc.data());
         
         // Get student details
         let studentData = null;
@@ -131,10 +140,10 @@ export async function GET(
         return {
           id: doc.id,
           // Map to expected format for UI compatibility
-          technicalScore: scores.technical || 0,
-          communicationScore: scores.communication || 0,
-          problemSolvingScore: scores.problemSolving || 0,
-          overallScore: scores.overall || 0,
+          technicalScore: reportData.technicalScore || scores.technical || 0,
+          communicationScore: reportData.communicationScore || scores.communication || 0,
+          problemSolvingScore: reportData.problemSolvingScore || scores.problemSolving || 0,
+          overallScore: reportData.overallScore || scores.overall || 0,
           
           // New technical correctness scores
           technicalCorrectness: scores.technicalCorrectness || 0,

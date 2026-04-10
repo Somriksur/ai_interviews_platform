@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireOrganizationOwnership } from "@/lib/security/guards";
 
 /**
  * GET /api/organization/[orgId]/interview-drives/[driveId]/students
@@ -10,7 +12,12 @@ export async function GET(
   { params }: { params: Promise<{ orgId: string; driveId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId, driveId } = await params;
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
 
     // Verify the drive belongs to this organization
     const driveDoc = await db

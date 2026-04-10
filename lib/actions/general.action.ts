@@ -50,7 +50,7 @@ interface Feedback {
 
 export async function getInterviewById(id: string): Promise<Interview | null> {
     try {
-        const interview = await db.collection("interviews").doc(id).get();
+        const interview = await db.collection("interview_sessions").doc(id).get();
         return interview.exists ? ({ id: interview.id, ...interview.data() } as Interview) : null;
     } catch (error) {
         console.warn("Firestore unavailable while fetching interview:", error);
@@ -81,9 +81,9 @@ export async function getFeedbackByInterviewId(
 
     try {
         const querySnapshot = await db
-            .collection("feedback")
-            .where("interviewId", "==", interviewId)
-            .where("userId", "==", userId)
+            .collection("evaluation_reports")
+            .where("sessionId", "==", interviewId)
+            .where("studentId", "==", userId)
             .limit(1)
             .get();
 
@@ -129,7 +129,7 @@ export async function getLatestInterviews(
 
     try {
         const interviews = await db
-            .collection("interviews")
+            .collection("interview_sessions")
             .where("status", "==", "completed")
             .where("recruiterId", "!=", userId)
             .orderBy("recruiterId", "asc")
@@ -170,7 +170,7 @@ export async function getInterviewsByUserId(
 ): Promise<Interview[] | null> {
     try {
         const interviews = await db
-            .collection("interviews")
+            .collection("interview_sessions")
             .where("recruiterId", "==", userId)
             .orderBy("createdAt", "desc")
             .get();

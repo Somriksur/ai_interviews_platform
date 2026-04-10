@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db } from '@/firebase/admin';
 import { getCurrentUser } from '@/lib/actions/auth.action';
+
+const updateNotificationSchema = z
+  .object({
+    notificationId: z.string().min(1).optional(),
+    markAllRead: z.boolean().optional(),
+  })
+  .strict();
 
 /**
  * GET /api/students/[studentId]/notifications
@@ -247,8 +255,15 @@ export async function PATCH(
     }
 
     const { studentId } = await params;
-    const body = await request.json();
-    const { notificationId, markAllRead } = body;
+    const rawBody = await request.json();
+    const parseResult = updateNotificationSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { notificationId, markAllRead } = parseResult.data;
 
     // Verify user can access this student's notifications
     if (user.role === 'student') {

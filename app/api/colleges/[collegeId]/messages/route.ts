@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db } from '@/firebase/admin';
 import { getCurrentUser } from '@/lib/actions/auth.action';
+
+const createCollegeMessageSchema = z
+  .object({
+    title: z.string().min(1).max(180),
+    content: z.string().min(1).max(5000),
+    priority: z.enum(["low", "medium", "high"]),
+    targetType: z.enum(["all", "specific"]),
+    targetStudentIds: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
 
 // POST /api/colleges/[collegeId]/messages - Create a new message
 export async function POST(
@@ -14,32 +25,15 @@ export async function POST(
     }
 
     const { collegeId } = await params;
-    const body = await request.json();
-    const { title, content, priority, targetType, targetStudentIds } = body;
-
-    // Validate required fields
-    if (!title || !content || !priority || !targetType) {
+    const rawBody = await request.json();
+    const parseResult = createCollegeMessageSchema.safeParse(rawBody);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'Missing required fields: title, content, priority, targetType' },
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
-
-    // Validate priority
-    if (!['low', 'medium', 'high'].includes(priority)) {
-      return NextResponse.json(
-        { error: 'Priority must be low, medium, or high' },
-        { status: 400 }
-      );
-    }
-
-    // Validate target type
-    if (!['all', 'specific'].includes(targetType)) {
-      return NextResponse.json(
-        { error: 'Target type must be all or specific' },
-        { status: 400 }
-      );
-    }
+    const { title, content, priority, targetType, targetStudentIds } = parseResult.data;
 
     // If specific targeting, validate student IDs
     if (targetType === 'specific' && (!targetStudentIds || !Array.isArray(targetStudentIds) || targetStudentIds.length === 0)) {

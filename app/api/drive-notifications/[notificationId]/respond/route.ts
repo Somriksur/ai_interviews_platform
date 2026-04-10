@@ -1,14 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db as db } from '@/firebase/admin';
 import { isValidNotificationAction, actionToStatus } from '@/types/drive-notification';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireRole } from '@/lib/security/guards';
+
+const respondSchema = z
+  .object({
+    action: z.string().min(1),
+  })
+  .strict();
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ notificationId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
+    const roleError = requireRole(authResult.context, ['college']);
+    if (roleError) return roleError;
+
     const { notificationId } = await params;
-    const { action } = await request.json();
+    const rawBody = await request.json();
+    const parseResult = respondSchema.safeParse(rawBody);
+
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { action } = parseResult.data;
 
     // Validate action parameter
     if (!action || !isValidNotificationAction(action)) {
@@ -33,6 +57,20 @@ export async function POST(
 
     const notificationData = notificationDoc.data();
     const newStatus = actionToStatus(action);
+
+    const ownedCollegeSnapshot = await db
+      .collection('colleges')
+      .where('adminId', '==', authResult.context.user.id)
+      .limit(1)
+      .get();
+
+    if (ownedCollegeSnapshot.empty) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const ownedCollegeId = ownedCollegeSnapshot.docs[0].id;
+    if (notificationData?.collegeId !== ownedCollegeId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Update notification status
     await db

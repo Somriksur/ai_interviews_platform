@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireOrganizationOwnership, requireRole } from '@/lib/security/guards';
+import { withCanonicalScores } from '@/lib/utils/evaluation-report';
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ driveId: string }> }) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
+    const roleError = requireRole(authResult.context, ['organization']);
+    if (roleError) return roleError;
+
     const { driveId } = await params;
     // Get drive details
     const driveDoc = await db.collection('interview_drives').doc(driveId).get();
@@ -15,16 +24,21 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     }
 
     const driveData = driveDoc.data();
+    const ownershipError = await requireOrganizationOwnership(
+      authResult.context,
+      driveData?.organizationId
+    );
+    if (ownershipError) return ownershipError;
 
-    // Get all placement reports for this drive
+    // Get all evaluation reports for this drive
     const reportsSnapshot = await db
-      .collection('placement_reports')
+      .collection('evaluation_reports')
       .where('driveId', '==', driveId)
       .get();
 
     if (reportsSnapshot.empty) {
       return NextResponse.json(
-        { error: 'No reports found. Generate reports first.' },
+        { error: 'No evaluation reports found. Generate reports first.' },
         { status: 400 }
       );
     }
@@ -44,7 +58,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
     // Match each student with jobs
     for (const reportDoc of reportsSnapshot.docs) {
-      const reportData = reportDoc.data();
+      const reportData = withCanonicalScores(reportDoc.data());
       
       // Get student details
       const studentDoc = await db.collection('students').doc(reportData.studentId).get();
@@ -56,7 +70,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
         {
           skills: studentData.skills || [],
           overallScore: reportData.overallScore || 0,
-          communicationRating: reportData.communicationRating || 0,
+          communicationRating: reportData.communicationScore || 0,
         },
         jobs
       );
@@ -66,13 +80,14 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
         studentId: reportData.studentId,
         driveId: driveId,
         matches: matches.slice(0, 5), // Top 5 matches
-        recommendedCategory: reportData.salaryBand,
+        recommendedCategory: reportData.recommendation,
         generatedAt: new Date(),
       });
 
       // Update report with recommended jobs
-      await db.collection('placement_reports').doc(reportDoc.id).update({
+      await db.collection('evaluation_reports').doc(reportDoc.id).update({
         recommendedJobs: matches.slice(0, 5).map((m: any) => m.jobId),
+        updatedAt: new Date(),
       });
 
       matchResults.push(matchRef.id);

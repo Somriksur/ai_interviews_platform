@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from "@/lib/security/auth-context";
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { userId } = await params;
+    if (authResult.context.user.id !== userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const userDoc = await db.collection('users').doc(userId).get();
 
     if (!userDoc.exists) {

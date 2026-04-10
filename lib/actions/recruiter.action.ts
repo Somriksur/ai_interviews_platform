@@ -4,7 +4,7 @@ import { db } from "@/firebase/admin";
 export async function getInterviewsByRecruiterId(recruiterId: string) {
     try {
         const snapshot = await db
-            .collection("interviews")
+            .collection("interview_sessions")
             .where("recruiterId", "==", recruiterId)
             .orderBy("createdAt", "desc")
             .get();
@@ -21,46 +21,44 @@ export async function getInterviewsByRecruiterId(recruiterId: string) {
 
 export async function getFeedbacksByRecruiterId(recruiterId: string) {
     try {
-        const snapshot = await db
-            .collection("feedbacks")
+        const sessionSnapshot = await db
+            .collection("interview_sessions")
             .where("recruiterId", "==", recruiterId)
             .orderBy("createdAt", "desc")
             .get();
 
         const feedbacks = await Promise.all(
-            snapshot.docs.map(async (doc) => {
-                const feedbackData = doc.data();
-                
-                // Get interview details
-                const interviewDoc = await db
-                    .collection("interviews")
-                    .doc(feedbackData.interviewId)
+            sessionSnapshot.docs.map(async (sessionDoc) => {
+                const sessionData = sessionDoc.data();
+                if (!sessionData?.evaluationId) return null;
+
+                const reportDoc = await db
+                    .collection("evaluation_reports")
+                    .doc(sessionData.evaluationId)
                     .get();
-                
-                const interviewData = interviewDoc.data();
-                
-                // Get candidate details
-                const candidateDoc = await db
-                    .collection("users")
-                    .doc(feedbackData.candidateId)
-                    .get();
-                
-                const candidateData = candidateDoc.data();
+                if (!reportDoc.exists) return null;
+
+                const feedbackData = reportDoc.data() || {};
+
+                const studentDoc = sessionData.studentId
+                    ? await db.collection("students").doc(sessionData.studentId).get()
+                    : null;
+                const studentData = studentDoc?.data();
 
                 return {
-                    id: doc.id,
+                    id: reportDoc.id,
                     ...feedbackData,
                     interview: {
-                        id: interviewDoc.id,
-                        role: interviewData?.role,
-                        type: interviewData?.type,
-                        level: interviewData?.level,
-                        techstack: interviewData?.techstack,
+                        id: sessionDoc.id,
+                        role: sessionData?.role,
+                        type: sessionData?.type,
+                        level: sessionData?.level,
+                        techstack: sessionData?.techstack,
                     },
                     candidate: {
-                        id: candidateDoc.id,
-                        name: candidateData?.name,
-                        email: candidateData?.email,
+                        id: studentDoc?.id || sessionData?.studentId,
+                        name: studentData?.name,
+                        email: studentData?.email,
                     },
                 };
             })
@@ -68,7 +66,7 @@ export async function getFeedbacksByRecruiterId(recruiterId: string) {
 
         // Remove duplicates based on feedback ID
         const uniqueFeedbacks = Array.from(
-            new Map(feedbacks.map(f => [f.id, f])).values()
+            new Map(feedbacks.filter(Boolean).map((f: any) => [f.id, f])).values()
         );
 
         return uniqueFeedbacks;
@@ -91,10 +89,11 @@ export async function createInterview(data: {
         const interviewData = {
             ...data,
             status: data.candidateEmail ? "assigned" : "draft",
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
         };
 
-        const docRef = await db.collection("interviews").add(interviewData);
+        const docRef = await db.collection("interview_sessions").add(interviewData);
 
         return {
             success: true,

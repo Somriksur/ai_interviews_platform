@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db } from '@/firebase/admin';
 import { getCurrentUser } from '@/lib/actions/auth.action';
 import { normalizeCollegeName } from '@/lib/services/college-name.service';
+
+const tagStudentsSchema = z
+  .object({
+    studentIds: z.array(z.string().min(1)).min(1),
+    sendNotification: z.boolean().optional(),
+  })
+  .strict();
+
+const removeTaggedStudentsSchema = z
+  .object({
+    studentIds: z.array(z.string().min(1)).min(1),
+  })
+  .strict();
 
 // POST /api/colleges/[collegeId]/interview-drives/[driveId]/tag-students
 export async function POST(
@@ -15,16 +29,15 @@ export async function POST(
     }
 
     const { collegeId, driveId } = await params;
-    const body = await request.json();
-    const { studentIds, sendNotification = true } = body;
-
-    // Validate required fields
-    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+    const rawBody = await request.json();
+    const parseResult = tagStudentsSchema.safeParse(rawBody);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'Student IDs array is required' },
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
+    const { studentIds, sendNotification = true } = parseResult.data;
 
     console.log(`🏷️ Tagging ${studentIds.length} students for drive ${driveId}`);
 
@@ -307,15 +320,15 @@ export async function DELETE(
     }
 
     const { collegeId, driveId } = await params;
-    const body = await request.json();
-    const { studentIds } = body;
-
-    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+    const rawBody = await request.json();
+    const parseResult = removeTaggedStudentsSchema.safeParse(rawBody);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'Student IDs array is required' },
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
+    const { studentIds } = parseResult.data;
 
     console.log(`🗑️ Removing tags for ${studentIds.length} students from drive ${driveId}`);
 

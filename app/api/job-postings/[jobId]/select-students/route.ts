@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db as db } from '@/firebase/admin';
 import { getCurrentUser } from '@/lib/actions/auth.action';
+import { withCanonicalScores } from '@/lib/utils/evaluation-report';
+
+const selectStudentsSchema = z
+  .object({
+    studentIds: z.array(z.string().min(1)).min(1),
+    action: z.enum(["select", "reject", "shortlist"]),
+  })
+  .strict();
 
 /**
  * POST /api/job-postings/[jobId]/select-students
@@ -17,21 +26,15 @@ export async function POST(
     }
 
     const { jobId } = await params;
-    const { studentIds, action } = await request.json();
-
-    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+    const rawBody = await request.json();
+    const parseResult = selectStudentsSchema.safeParse(rawBody);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'Student IDs are required' },
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
-
-    if (!action || !['select', 'reject', 'shortlist'].includes(action)) {
-      return NextResponse.json(
-        { error: 'Invalid action. Must be "select", "reject", or "shortlist"' },
-        { status: 400 }
-      );
-    }
+    const { studentIds, action } = parseResult.data;
 
     // Get job posting
     const jobDoc = await db.collection('jobPostings').doc(jobId).get();
@@ -40,6 +43,15 @@ export async function POST(
     }
 
     const jobData = jobDoc.data();
+    const orgSnapshot = await db
+      .collection('organizations')
+      .where('adminId', '==', user.id)
+      .limit(1)
+      .get();
+
+    if (orgSnapshot.empty || jobData?.organizationId !== orgSnapshot.docs[0].id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Create or update selections for each student
     const selectionPromises = studentIds.map(async (studentId: string) => {
@@ -52,26 +64,15 @@ export async function POST(
       // Get student's interview report for score tracking
       let overallScore = 0;
       const reportsSnapshot = await db
-        .collection('placement_reports')
+        .collection('evaluation_reports')
         .where('studentId', '==', studentId)
-        .orderBy('generatedAt', 'desc')
+        .orderBy('createdAt', 'desc')
         .limit(1)
         .get();
 
       if (!reportsSnapshot.empty) {
-        overallScore = reportsSnapshot.docs[0].data().overallScore || 0;
-      } else {
-        // Fallback to combinedReports
-        const combinedSnapshot = await db
-          .collection('combinedReports')
-          .where('studentId', '==', studentId)
-          .orderBy('createdAt', 'desc')
-          .limit(1)
-          .get();
-        
-        if (!combinedSnapshot.empty) {
-          overallScore = combinedSnapshot.docs[0].data().overallScore || 0;
-        }
+        const canonical = withCanonicalScores(reportsSnapshot.docs[0].data());
+        overallScore = canonical.overallScore || 0;
       }
 
       // Calculate threshold tracking

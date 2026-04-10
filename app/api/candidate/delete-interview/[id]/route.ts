@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import { db } from "@/firebase/admin";
 
+const adminDb = db!;
+
 export async function DELETE(
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -17,39 +19,48 @@ export async function DELETE(
 
         const { id } = await params;
 
-        // Get interview to verify it's in-progress and belongs to this candidate
-        const interviewDoc = await db.collection("interviews").doc(id).get();
-        if (!interviewDoc.exists) {
+        // Resolve candidate's student identity
+        const studentSnapshot = await adminDb
+            .collection("students")
+            .where("userId", "==", user.id)
+            .limit(1)
+            .get();
+        const studentId = studentSnapshot.empty ? user.id : studentSnapshot.docs[0].id;
+
+        // Get session to verify it's in-progress and belongs to this candidate
+        const sessionDoc = await adminDb.collection("interview_sessions").doc(id).get();
+        if (!sessionDoc.exists) {
             return NextResponse.json(
-                { success: false, error: "Interview not found" },
+                { success: false, error: "Interview session not found" },
                 { status: 404 }
             );
         }
 
-        const interview = interviewDoc.data();
+        const session = sessionDoc.data();
         
-        // Only allow deletion if interview is in-progress and assigned to this candidate
-        if (interview?.candidateId !== user.id) {
+        // Only allow deletion if session is in-progress and belongs to this candidate
+        if (session?.studentId !== studentId) {
             return NextResponse.json(
-                { success: false, error: "Not authorized to delete this interview" },
+                { success: false, error: "Not authorized to delete this interview session" },
                 { status: 403 }
             );
         }
 
-        if (interview?.status !== "in-progress") {
+        if (session?.status !== "in-progress") {
             return NextResponse.json(
                 { success: false, error: "Can only delete in-progress interviews" },
                 { status: 400 }
             );
         }
 
-        // Reset interview to assigned status (remove candidateId)
-        await db.collection("interviews").doc(id).update({
+        // Reset session to assigned status and clear transcript
+        await adminDb.collection("interview_sessions").doc(id).update({
             status: "assigned",
-            candidateId: null,
+            transcript: [],
+            updatedAt: new Date(),
         });
 
-        console.log("✅ In-progress interview reset by candidate:", id);
+        console.log("✅ In-progress interview session reset by candidate:", id);
 
         return NextResponse.json({
             success: true,

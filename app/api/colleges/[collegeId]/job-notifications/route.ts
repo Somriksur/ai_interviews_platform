@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireCollegeOwnership } from '@/lib/security/guards';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { collegeId } = await params;
+    const ownershipError = await requireCollegeOwnership(authResult.context, collegeId);
+    if (ownershipError) return ownershipError;
     
     console.log(`📬 Fetching notifications for college: ${collegeId}`);
 

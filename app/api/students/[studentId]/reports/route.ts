@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireStudentAccess } from '@/lib/security/guards';
+import { withCanonicalScores } from '@/lib/utils/evaluation-report';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { studentId } = await params;
+    const accessError = await requireStudentAccess(authResult.context, studentId);
+    if (accessError) return accessError;
     
     console.log(`📊 Fetching reports for student: ${studentId}`);
 
@@ -22,7 +30,7 @@ export async function GET(
     // Process reports and get additional data
     const reports = await Promise.all(
       evalSnapshot.docs.map(async (doc) => {
-        const reportData = doc.data();
+        const reportData = withCanonicalScores(doc.data());
         
         // Get interview drive details
         let driveData = null;
@@ -105,10 +113,10 @@ export async function GET(
         return {
           id: doc.id,
           // Core scores
-          technicalScore: scores.technical || 0,
-          communicationScore: scores.communication || 0,
-          problemSolvingScore: scores.problemSolving || 0,
-          overallScore: scores.overall || 0,
+          technicalScore: reportData.technicalScore || scores.technical || 0,
+          communicationScore: reportData.communicationScore || scores.communication || 0,
+          problemSolvingScore: reportData.problemSolvingScore || scores.problemSolving || 0,
+          overallScore: reportData.overallScore || scores.overall || 0,
           
           // New technical correctness scores for detailed student feedback
           technicalCorrectness: scores.technicalCorrectness || 0,

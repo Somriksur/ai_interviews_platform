@@ -14,16 +14,21 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
         redirect("/auth/sign-in");
     }
 
-    const feedbackDoc = await db.collection("feedbacks").doc(feedbackId).get();
-    if (!feedbackDoc.exists) {
-        return <div>Feedback not found</div>;
+    const reportDoc = await db.collection("evaluation_reports").doc(feedbackId).get();
+    if (!reportDoc.exists) {
+        return <div>Report not found</div>;
     }
 
-    const feedback = { id: feedbackDoc.id, ...feedbackDoc.data() } as Feedback;
+    const report = { id: reportDoc.id, ...reportDoc.data() } as any;
 
-    // Get interview details
-    const interviewDoc = await db.collection("interviews").doc(feedback.interviewId).get();
-    const interview = interviewDoc.data() as Interview;
+    const sessionDoc = report.sessionId
+        ? await db.collection("interview_sessions").doc(report.sessionId).get()
+        : null;
+    const session = sessionDoc?.data() || {};
+    const driveDoc = session?.driveId
+        ? await db.collection("interview_drives").doc(session.driveId).get()
+        : null;
+    const drive = driveDoc?.data() || {};
 
     return (
         <div className="container mx-auto p-6 max-w-4xl space-y-6">
@@ -33,10 +38,10 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                     <ExportPDFButton
                         interviewData={{
                             candidateName: user.name || "Unknown",
-                            role: interview.role,
-                            score: feedback.totalScore,
-                            questions: feedback.transcript?.filter((t: { role: string }) => t.role === "assistant").map((t: { content: string }) => t.content) || [],
-                            answers: feedback.transcript?.filter((t: { role: string }) => t.role === "user").map((t: { content: string }) => t.content) || [],
+                            role: drive.role || session?.role || "Interview",
+                            score: Number(report.overallScore ?? report.scores?.overall ?? 0),
+                            questions: report.transcript?.questionResponses?.map((qr: any) => qr.question) || [],
+                            answers: report.transcript?.questionResponses?.map((qr: any) => qr.response) || [],
                         }}
                     />
                     <Button asChild>
@@ -47,12 +52,12 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
 
             <div className="card p-6 space-y-4">
                 <div>
-                    <h2 className="text-2xl font-semibold">{interview.role}</h2>
-                    <p className="text-gray-400">{interview.level} • {interview.type}</p>
+                    <h2 className="text-2xl font-semibold">{drive.role || session?.role || "Interview"}</h2>
+                    <p className="text-gray-400">{session?.level || "mid-level"} • {session?.type || "technical"}</p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                    {interview.techstack.map((tech, i) => (
+                    {(session?.techstack || []).map((tech: string, i: number) => (
                         <span key={i} className="px-3 py-1 bg-primary/20 rounded-full text-sm">
                             {tech}
                         </span>
@@ -64,13 +69,17 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                 <div className="text-center mb-6">
                     <h3 className="text-lg font-semibold mb-2">Overall Score</h3>
                     <div className="text-6xl font-bold text-primary">
-                        {feedback.totalScore}
+                        {Number(report.overallScore ?? report.scores?.overall ?? 0)}
                         <span className="text-2xl">/100</span>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {feedback.categoryScores.map((category, i) => (
+                    {[
+                        { name: "Technical", score: Number(report.technicalScore ?? report.scores?.technical ?? 0), comment: "Technical competency assessment" },
+                        { name: "Communication", score: Number(report.communicationScore ?? report.scores?.communication ?? 0), comment: "Communication effectiveness assessment" },
+                        { name: "Problem Solving", score: Number(report.problemSolvingScore ?? report.scores?.problemSolving ?? 0), comment: "Problem solving assessment" },
+                    ].map((category, i) => (
                         <div key={i} className="border rounded-lg p-4">
                             <div className="flex justify-between items-center mb-2">
                                 <h4 className="font-semibold">{category.name}</h4>
@@ -88,7 +97,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                 <div className="card p-6">
                     <h3 className="text-xl font-semibold mb-4 text-green-400">✅ Strengths</h3>
                     <ul className="space-y-2">
-                        {feedback.strengths.map((strength, i) => (
+                        {(report.feedback?.strengths || []).map((strength: string, i: number) => (
                             <li key={i} className="flex items-start">
                                 <span className="text-green-400 mr-2">•</span>
                                 <span>{strength}</span>
@@ -100,7 +109,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                 <div className="card p-6">
                     <h3 className="text-xl font-semibold mb-4 text-yellow-400">📈 Areas for Improvement</h3>
                     <ul className="space-y-2">
-                        {feedback.areasForImprovement.map((area, i) => (
+                        {(report.feedback?.improvements || []).map((area: string, i: number) => (
                             <li key={i} className="flex items-start">
                                 <span className="text-yellow-400 mr-2">•</span>
                                 <span>{area}</span>
@@ -112,19 +121,21 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
 
             <div className="card p-6">
                 <h3 className="text-xl font-semibold mb-4">Final Assessment</h3>
-                <p className="text-gray-300 leading-relaxed">{feedback.finalAssessment}</p>
+                <p className="text-gray-300 leading-relaxed">
+                    {report.feedback?.detailedAnalysis || "Detailed assessment unavailable."}
+                </p>
             </div>
 
-            {user.role === "organization" && feedback.transcript && (
+            {user.role === "organization" && report.transcript?.questionResponses && (
                 <div className="card p-6">
                     <h3 className="text-xl font-semibold mb-4">Interview Transcript</h3>
                     <div className="space-y-3 max-h-96 overflow-y-auto">
-                        {feedback.transcript.map((entry, i) => (
-                            <div key={i} className={`p-3 rounded-lg ${
-                                entry.role === "assistant" ? "bg-primary/10" : "bg-secondary/10"
-                            }`}>
-                                <span className="font-semibold capitalize">{entry.role}:</span>
-                                <p className="mt-1">{entry.content}</p>
+                        {report.transcript.questionResponses.map((entry: any, i: number) => (
+                            <div key={i} className="p-3 rounded-lg bg-secondary/10">
+                                <span className="font-semibold">Q:</span>
+                                <p className="mt-1">{entry.question}</p>
+                                <span className="font-semibold mt-2 inline-block">A:</span>
+                                <p className="mt-1">{entry.response}</p>
                             </div>
                         ))}
                     </div>

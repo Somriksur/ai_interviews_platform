@@ -1,15 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db as db } from '@/firebase/admin';
 import { normalizeCollegeName } from '@/lib/services/college-name.service';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole } from "@/lib/security/guards";
+
+const tagCollegesSchema = z
+  .object({
+    collegeNames: z.array(z.string().min(1)).optional(),
+    collegeIds: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+    const roleError = requireRole(authResult.context, ["organization"]);
+    if (roleError) return roleError;
+
     const { jobId } = await params;
-    const body = await request.json();
-    const { collegeNames, collegeIds } = body;
+    const rawBody = await request.json();
+    const parseResult = tagCollegesSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { collegeNames, collegeIds } = parseResult.data;
 
     // Support both collegeNames (new format) and collegeIds (legacy format)
     if ((!collegeNames || !Array.isArray(collegeNames) || collegeNames.length === 0) && 
@@ -31,6 +53,15 @@ export async function POST(
     }
 
     const jobData = jobDoc.data();
+    const orgSnapshot = await db
+      .collection("organizations")
+      .where("adminId", "==", authResult.context.user.id)
+      .limit(1)
+      .get();
+
+    if (orgSnapshot.empty || jobData?.organizationId !== orgSnapshot.docs[0].id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     
     let normalizedCollegeNames: string[] = [];
     let collegeValidationPromises: Promise<{

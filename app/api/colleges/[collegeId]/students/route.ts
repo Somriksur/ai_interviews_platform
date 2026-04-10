@@ -1,13 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { z } from "zod";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireCollegeOwnership } from "@/lib/security/guards";
+
+const createStudentSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    email: z.string().email(),
+    rollNumber: z.string().min(1).max(64),
+    branch: z.string().max(120).optional(),
+    year: z.number().int().min(1).max(8).optional(),
+    cgpa: z.number().min(0).max(10).optional(),
+    skills: z.array(z.string().min(1).max(64)).max(100).optional(),
+  })
+  .strict();
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { collegeId } = await params;
-    const { name, email, rollNumber, branch, year, cgpa, skills } = await request.json();
+    const accessError = await requireCollegeOwnership(authResult.context, collegeId);
+    if (accessError) return accessError;
+    const rawBody = await request.json();
+    const parseResult = createStudentSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { name, email, rollNumber, branch, year, cgpa, skills } = parseResult.data;
 
     if (!name || !email || !rollNumber) {
       return NextResponse.json(
@@ -59,7 +87,13 @@ export async function GET(
   { params }: { params: Promise<{ collegeId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { collegeId } = await params;
+    const accessError = await requireCollegeOwnership(authResult.context, collegeId);
+    if (accessError) return accessError;
+
     const snapshot = await db
       .collection('students')
       .where('collegeId', '==', collegeId)

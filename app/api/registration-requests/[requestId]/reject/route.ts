@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db } from '@/firebase/admin';
 import { getCurrentUser } from '@/lib/actions/auth.action';
 import { notifyStudentOfRejection } from '@/lib/services/notification.service';
+
+const rejectRegistrationSchema = z
+  .object({
+    rejectionReason: z.string().max(1000).optional(),
+  })
+  .strict();
 
 /**
  * POST /api/registration-requests/[requestId]/reject
@@ -18,8 +25,15 @@ export async function POST(
     }
 
     const { requestId } = await params;
-    const body = await request.json();
-    const { rejectionReason } = body;
+    const rawBody = await request.json();
+    const parseResult = rejectRegistrationSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { rejectionReason } = parseResult.data;
 
     // Get the registration request
     const requestDoc = await db.collection('registration_requests').doc(requestId).get();

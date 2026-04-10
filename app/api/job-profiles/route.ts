@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db as db } from '@/firebase/admin';
-import { getCurrentUser } from '@/lib/actions/auth.action';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole } from "@/lib/security/guards";
+
+const createJobProfileSchema = z
+  .object({
+    organizationId: z.string().min(1),
+    title: z.string().min(1).max(200),
+    company: z.string().min(1).max(200),
+    description: z.string().max(5000).optional(),
+    requiredSkills: z.array(z.string()).optional(),
+    minimumScore: z.number().min(0).max(100).optional(),
+    communicationRequirement: z.number().min(0).max(100).optional(),
+    experienceLevel: z.string().max(80).optional(),
+    salaryBand: z
+      .object({
+        min: z.number(),
+        max: z.number(),
+        category: z.string(),
+      })
+      .optional(),
+  })
+  .strict();
 
 /**
  * GET /api/job-profiles
@@ -8,10 +30,10 @@ import { getCurrentUser } from '@/lib/actions/auth.action';
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user || user.role !== 'organization') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+    const roleError = requireRole(authResult.context, ["organization"]);
+    if (roleError) return roleError;
 
     const { searchParams } = new URL(request.url);
     const organizationId = searchParams.get('organizationId');
@@ -21,6 +43,15 @@ export async function GET(request: NextRequest) {
         { error: 'Organization ID is required' },
         { status: 400 }
       );
+    }
+
+    const orgSnapshot = await db
+      .collection("organizations")
+      .where("adminId", "==", authResult.context.user.id)
+      .limit(1)
+      .get();
+    if (orgSnapshot.empty || orgSnapshot.docs[0].id !== organizationId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const snapshot = await db
@@ -50,12 +81,20 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user || user.role !== 'organization') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+    const roleError = requireRole(authResult.context, ["organization"]);
+    if (roleError) return roleError;
+
+    const rawBody = await request.json();
+    const parseResult = createJobProfileSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
     }
 
-    const body = await request.json();
     const {
       organizationId,
       title,
@@ -66,14 +105,15 @@ export async function POST(request: NextRequest) {
       communicationRequirement,
       experienceLevel,
       salaryBand,
-    } = body;
+    } = parseResult.data;
 
-    // Validate required fields
-    if (!organizationId || !title || !company) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+    const orgSnapshot = await db
+      .collection("organizations")
+      .where("adminId", "==", authResult.context.user.id)
+      .limit(1)
+      .get();
+    if (orgSnapshot.empty || orgSnapshot.docs[0].id !== organizationId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Create job posting

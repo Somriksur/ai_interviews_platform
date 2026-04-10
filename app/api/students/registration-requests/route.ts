@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db } from '@/firebase/admin';
 import { normalizeCollegeName } from '@/lib/services/college-name.service';
 import { validateRegistrationRequest } from '@/types/registration-request';
 import { notifyCollegeOfRegistrationRequest } from '@/lib/services/notification.service';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole } from "@/lib/security/guards";
+
+const createRegistrationRequestSchema = z
+  .object({
+    studentName: z.string().min(1).max(120),
+    email: z.string().email(),
+    collegeName: z.string().min(1).max(200),
+    rollNumber: z.string().max(64).optional(),
+    branch: z.string().max(120).optional(),
+    year: z.number().int().min(1).max(8).optional(),
+  })
+  .strict();
 
 /**
  * POST /api/students/registration-requests
@@ -10,8 +24,23 @@ import { notifyCollegeOfRegistrationRequest } from '@/lib/services/notification.
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { studentName, email, collegeName, rollNumber, branch, year } = body;
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+    const roleError = requireRole(authResult.context, ["student", "candidate"]);
+    if (roleError) return roleError;
+
+    const rawBody = await request.json();
+    const parseResult = createRegistrationRequestSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { studentName, email, collegeName, rollNumber, branch, year } = parseResult.data;
+    if (authResult.context.user.email.toLowerCase() !== String(email || "").toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden: email must match authenticated user" }, { status: 403 });
+    }
 
     // Validate input
     const validation = validateRegistrationRequest({
@@ -136,8 +165,14 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
+    if (!email || authResult.context.user.email.toLowerCase() !== email.toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     if (!email) {
       return NextResponse.json(

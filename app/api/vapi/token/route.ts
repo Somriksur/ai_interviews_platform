@@ -1,7 +1,15 @@
+import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole } from "@/lib/security/guards";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
     try {
+        const authResult = await getAuthContext(request);
+        if (!authResult.ok) return authResult.response;
+        const roleError = requireRole(authResult.context, ["candidate", "student"]);
+        if (roleError) return roleError;
+
         const apiKey = process.env.VAPI_API_KEY;
 
         if (!apiKey) {

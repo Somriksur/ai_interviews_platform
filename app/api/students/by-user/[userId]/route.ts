@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as db } from "@/firebase/admin";
+import { getAuthContext } from "@/lib/security/auth-context";
 
 /**
  * GET /api/students/by-user/[userId]
  * Get student record by Firebase user ID
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { userId } = await params;
+    if (authResult.context.user.id !== userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     // Query students collection for matching userId
     const studentsSnapshot = await db

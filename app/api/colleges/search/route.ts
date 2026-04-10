@@ -6,9 +6,16 @@ import {
   sortByRelevance,
   type College,
 } from '@/lib/services/college-name.service';
+import { getAuthContext } from '@/lib/security/auth-context';
+import { requireRole } from '@/lib/security/guards';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+    const roleError = requireRole(authResult.context, ["organization"]);
+    if (roleError) return roleError;
+
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('q');
 

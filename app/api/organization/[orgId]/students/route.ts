@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireOrganizationOwnership } from "@/lib/security/guards";
 
 /**
  * GET /api/organization/[orgId]/students
@@ -10,7 +12,13 @@ export async function GET(
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId } = await params;
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
+
     const searchParams = request.nextUrl.searchParams;
     
     // Get filter parameters

@@ -85,6 +85,11 @@ function initFirebaseAdmin() {
     };
 }
 
-const { auth, db } = initFirebaseAdmin();
+const services = initFirebaseAdmin();
+
+// The app requires admin services for server routes; keep runtime fallback behavior,
+// but expose non-null typed exports so route handlers compile under strict mode.
+const auth = services.auth as ReturnType<typeof getAuth>;
+const db = services.db as ReturnType<typeof getFirestore>;
 
 export { auth, db };

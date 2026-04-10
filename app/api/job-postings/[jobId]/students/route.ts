@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
 import { getCurrentUser } from '@/lib/actions/auth.action';
+import { withCanonicalScores } from '@/lib/utils/evaluation-report';
 
 /**
  * GET /api/job-postings/[jobId]/students
@@ -25,6 +26,15 @@ export async function GET(
     }
 
     const jobData = jobDoc.data();
+    const orgSnapshot = await db
+      .collection('organizations')
+      .where('adminId', '==', user.id)
+      .limit(1)
+      .get();
+
+    if (orgSnapshot.empty || jobData?.organizationId !== orgSnapshot.docs[0].id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Get all notifications for this job that were confirmed
     const notificationsSnapshot = await db
@@ -72,30 +82,18 @@ export async function GET(
     // Flatten all students
     const allStudents = collegeStudents.flatMap((cs) => cs.students);
 
-    // Get comprehensive interview reports for these students
+    // Get comprehensive evaluation reports for these students
     const studentIds = allStudents.map((s: any) => s.id);
     const reportsPromises = studentIds.map(async (studentId) => {
-      // Try placement_reports first (comprehensive data)
-      let reportsSnapshot = await db
-        .collection('placement_reports')
+      const reportsSnapshot = await db
+        .collection('evaluation_reports')
         .where('studentId', '==', studentId)
-        .orderBy('generatedAt', 'desc')
+        .orderBy('createdAt', 'desc')
         .limit(1)
         .get();
-
-      // Fallback to combinedReports if placement_reports not found
-      if (reportsSnapshot.empty) {
-        reportsSnapshot = await db
-          .collection('combinedReports')
-          .where('studentId', '==', studentId)
-          .orderBy('createdAt', 'desc')
-          .limit(1)
-          .get();
-      }
-
       if (reportsSnapshot.empty) return null;
 
-      const reportData = reportsSnapshot.docs[0].data();
+      const reportData = withCanonicalScores(reportsSnapshot.docs[0].data());
       
       // Ensure all required fields are present with defaults
       return {
@@ -103,16 +101,16 @@ export async function GET(
         id: reportsSnapshot.docs[0].id,
         // Technical Metrics
         technicalScore: reportData.technicalScore || 0,
-        conceptualUnderstanding: reportData.conceptualUnderstanding || 0,
-        codeQuality: reportData.codeQuality || 0,
-        logicAndReasoning: reportData.logicAndReasoning || 0,
+        conceptualUnderstanding: reportData.scores?.conceptualUnderstanding || 0,
+        codeQuality: reportData.scores?.technicalCorrectness || 0,
+        logicAndReasoning: reportData.problemSolvingScore || 0,
         // Communication & Behavior
-        communicationRating: reportData.communicationRating || 0,
-        sentimentScore: reportData.sentimentScore || 0,
-        professionalismScore: reportData.professionalismScore || 0,
-        confidenceLevel: reportData.confidenceLevel || 0,
+        communicationRating: reportData.communicationScore || 0,
+        sentimentScore: reportData.emotionAnalysis?.overallWellbeing || 0,
+        professionalismScore: reportData.emotionAnalysis?.communication?.professionalism || 0,
+        confidenceLevel: reportData.confidenceAnalysis?.metrics?.overallConfidence || 0,
         // Emotional Analysis
-        emotionalAnalysis: reportData.emotionalAnalysis || {
+        emotionalAnalysis: reportData.emotionAnalysis || {
           overall: 'neutral',
           nervousness: 0,
           confidence: 0,
@@ -122,36 +120,17 @@ export async function GET(
           emotionalTone: 'Not available',
         },
         // Behavioral Analysis
-        behavioralAnalysis: reportData.behavioralAnalysis || {
-          communicationClarity: 0,
-          consistency: 0,
-          toneVariation: 0,
-          trustworthiness: 0,
-          professionalism: 0,
-          engagement: 0,
-        },
+        behavioralAnalysis: reportData.behavioralAnalysis || null,
         // Language Quality
-        languageQuality: reportData.languageQuality || {
-          grammar: 0,
-          fluency: 0,
-          vocabulary: 0,
-          hesitation: 0,
-          fillerWords: 0,
-        },
+        languageQuality: reportData.languageQuality || null,
         // Overall
         overallScore: reportData.overallScore || 0,
-        skillInsights: reportData.skillInsights || {
-          technical: [],
-          communication: [],
-          problemSolving: [],
-          leadership: [],
-          behavioral: [],
-        },
-        strengths: reportData.strengths || [],
-        weaknesses: reportData.weaknesses || [],
-        evaluationSummary: reportData.evaluationSummary || '',
+        skillInsights: reportData.skillInsights || {},
+        strengths: reportData.feedback?.strengths || reportData.strengths || [],
+        weaknesses: reportData.feedback?.improvements || reportData.weaknesses || [],
+        evaluationSummary: reportData.feedback?.detailedAnalysis || reportData.evaluationSummary || '',
         // Metadata
-        createdAt: reportData.generatedAt || reportData.createdAt || new Date(),
+        createdAt: reportData.createdAt || new Date(),
       };
     });
 

@@ -1,29 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as db } from "@/firebase/admin";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole, requireUserMatch } from "@/lib/security/guards";
+
+const adminDb = db!;
 
 export async function GET(request: NextRequest) {
     try {
-        const userId = request.nextUrl.searchParams.get("userId");
+        const authResult = await getAuthContext(request);
+        if (!authResult.ok) return authResult.response;
 
-        if (!userId) {
-            return NextResponse.json({ error: "User ID required" }, { status: 400 });
-        }
+        const roleError = requireRole(authResult.context, ["candidate", "student"]);
+        if (roleError) return roleError;
 
-        // Fetch completed interviews
-        const interviewsRef = db
-            .collection("interviews")
-            .where("candidateId", "==", userId)
-            .where("status", "==", "completed");
+        const userId = request.nextUrl.searchParams.get("userId") || authResult.context.user.id;
 
-        const snapshot = await interviewsRef.get();
+        const ownershipError = requireUserMatch(authResult.context, userId);
+        if (ownershipError) return ownershipError;
+
+        const studentSnapshot = await adminDb
+            .collection("students")
+            .where("userId", "==", userId)
+            .limit(1)
+            .get();
+        const studentId = studentSnapshot.empty ? userId : studentSnapshot.docs[0].id;
+
+        const sessionsSnapshot = await adminDb
+            .collection("interview_sessions")
+            .where("studentId", "==", studentId)
+            .where("status", "==", "completed")
+            .get();
 
         // Analyze performance by tech stack
         const skillScores: Record<string, number[]> = {};
 
-        snapshot.docs.forEach((doc) => {
-            const data = doc.data();
+        for (const doc of sessionsSnapshot.docs) {
+            const data = doc.data() || {};
             const techStack = data.techstack || [];
-            const score = data.score || 0;
+            let score = 0;
+            if (data.evaluationId) {
+                const reportDoc = await adminDb.collection("evaluation_reports").doc(data.evaluationId).get();
+                const reportData = reportDoc.data() || {};
+                score = Number(reportData.overallScore ?? reportData.scores?.overall ?? 0);
+            }
 
             techStack.forEach((tech: string) => {
                 if (!skillScores[tech]) {
@@ -31,7 +50,7 @@ export async function GET(request: NextRequest) {
                 }
                 skillScores[tech].push(score);
             });
-        });
+        }
 
         // Calculate average scores and identify weak areas (< 70)
         const weakAreas = Object.entries(skillScores)

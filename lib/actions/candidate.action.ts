@@ -4,25 +4,40 @@ import { db } from "@/firebase/admin";
 
 export async function getAvailableInterviews(candidateEmail: string) {
     try {
-        // Get interviews assigned to this candidate's email
-        const snapshot = await db
-            .collection("interviews")
-            .where("candidateEmail", "==", candidateEmail)
+        const studentSnapshot = await db
+            .collection("students")
+            .where("email", "==", candidateEmail.toLowerCase())
+            .limit(1)
+            .get();
+        if (studentSnapshot.empty) return [];
+
+        const studentId = studentSnapshot.docs[0].id;
+        const sessionsSnapshot = await db
+            .collection("interview_sessions")
+            .where("studentId", "==", studentId)
+            .where("status", "in", ["assigned", "pending"])
             .limit(50)
             .get();
 
-        const interviews = snapshot.docs
-            .map((doc) => ({
+        const sessions = await Promise.all(sessionsSnapshot.docs.map(async (doc) => {
+            const data = doc.data() as any;
+            const driveDoc = data.driveId
+                ? await db.collection("interview_drives").doc(data.driveId).get()
+                : null;
+            const driveData = driveDoc?.data() as any;
+            return {
                 id: doc.id,
-                ...doc.data(),
-            })) as Interview[];
+                role: driveData?.role || data.role || "Interview",
+                level: data.level || "mid-level",
+                type: data.type || "technical",
+                techstack: data.techstack || [],
+                createdAt: data.createdAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
+                organizationId: data.organizationId || driveData?.organizationId || "",
+                status: data.status || "assigned",
+            } as Interview;
+        }));
 
-        // Filter to only show "assigned" status (not in-progress or completed)
-        const availableInterviews = interviews.filter(i => 
-            i.status === "assigned"
-        );
-
-        return availableInterviews.sort((a, b) => 
+        return sessions.sort((a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
     } catch (error) {
@@ -33,61 +48,51 @@ export async function getAvailableInterviews(candidateEmail: string) {
 
 export async function getCandidateInterviews(candidateId: string) {
     try {
-        // Get completed interviews (with feedback)
-        const feedbackSnapshot = await db
-            .collection("feedbacks")
-            .where("candidateId", "==", candidateId)
+        const studentSnapshot = await db
+            .collection("students")
+            .where("userId", "==", candidateId)
+            .limit(1)
+            .get();
+        const studentId = studentSnapshot.empty ? candidateId : studentSnapshot.docs[0].id;
+
+        const sessionsSnapshot = await db
+            .collection("interview_sessions")
+            .where("studentId", "==", studentId)
             .get();
 
-        const feedbacks = feedbackSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        })) as Feedback[];
+        const interviews = await Promise.all(
+            sessionsSnapshot.docs.map(async (doc) => {
+                const data = doc.data() as any;
+                const driveDoc = data.driveId
+                    ? await db.collection("interview_drives").doc(data.driveId).get()
+                    : null;
+                const driveData = driveDoc?.data() as any;
 
-        // Sort in memory
-        feedbacks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        // Get interview details for each feedback
-        const completedInterviews = await Promise.all(
-            feedbacks.map(async (feedback) => {
-                const interviewDoc = await db
-                    .collection("interviews")
-                    .doc(feedback.interviewId)
-                    .get();
+                let totalScore: number | undefined = undefined;
+                let feedbackId: string | undefined = undefined;
+                if (data.evaluationId) {
+                    const reportDoc = await db.collection("evaluation_reports").doc(data.evaluationId).get();
+                    const reportData = reportDoc.data() as any;
+                    totalScore = Number(reportData?.overallScore ?? reportData?.scores?.overall ?? 0);
+                    feedbackId = data.evaluationId;
+                }
 
                 return {
-                    id: interviewDoc.id,
-                    ...interviewDoc.data(),
-                    feedbackId: feedback.id,
-                    totalScore: feedback.totalScore,
-                } as Interview & { feedbackId: string; totalScore: number };
+                    id: doc.id,
+                    role: driveData?.role || data.role || "Interview",
+                    level: data.level || "mid-level",
+                    type: data.type || "technical",
+                    techstack: data.techstack || [],
+                    createdAt: data.createdAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
+                    organizationId: data.organizationId || driveData?.organizationId || "",
+                    status: data.status || "assigned",
+                    feedbackId,
+                    totalScore,
+                } as Interview & { feedbackId?: string; totalScore?: number };
             })
         );
 
-        // Get in-progress interviews (without feedback)
-        const inProgressSnapshot = await db
-            .collection("interviews")
-            .where("candidateId", "==", candidateId)
-            .where("status", "==", "in-progress")
-            .get();
-
-        const inProgressInterviews = inProgressSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        })) as Interview[];
-
-        // Combine both lists
-        const allInterviews = [
-            ...completedInterviews,
-            ...inProgressInterviews,
-        ];
-
-        // Remove duplicates based on interview ID
-        const uniqueInterviews = Array.from(
-            new Map(allInterviews.map(i => [i.id, i])).values()
-        );
-
-        return uniqueInterviews.sort((a, b) => 
+        return interviews.sort((a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
     } catch (error) {
@@ -98,19 +103,25 @@ export async function getCandidateInterviews(candidateId: string) {
 
 export async function startInterview(interviewId: string, candidateId: string, candidateEmail: string) {
     try {
-        // Get interview details
-        const interviewDoc = await db.collection("interviews").doc(interviewId).get();
-        if (!interviewDoc.exists) {
+        const studentSnapshot = await db
+            .collection("students")
+            .where("userId", "==", candidateId)
+            .limit(1)
+            .get();
+        const studentId = studentSnapshot.empty ? candidateId : studentSnapshot.docs[0].id;
+
+        const sessionDoc = await db.collection("interview_sessions").doc(interviewId).get();
+        if (!sessionDoc.exists) {
             return {
                 success: false,
-                error: "Interview not found",
+                error: "Interview session not found",
             };
         }
 
-        const interview = interviewDoc.data() as Interview;
+        const session = sessionDoc.data() as any;
 
         // Check if interview is assigned to this candidate
-        if (interview.candidateEmail !== candidateEmail) {
+        if (session.studentId !== studentId) {
             return {
                 success: false,
                 error: "This interview is not assigned to you",
@@ -118,13 +129,7 @@ export async function startInterview(interviewId: string, candidateId: string, c
         }
 
         // Check if candidate already took this interview
-        const existingFeedback = await db
-            .collection("feedbacks")
-            .where("interviewId", "==", interviewId)
-            .where("candidateId", "==", candidateId)
-            .get();
-
-        if (!existingFeedback.empty) {
+        if (session.evaluationId || session.status === "completed") {
             return {
                 success: false,
                 error: "You have already taken this interview",
@@ -132,16 +137,29 @@ export async function startInterview(interviewId: string, candidateId: string, c
         }
 
         // Update interview status to in-progress
-        await db.collection("interviews").doc(interviewId).update({
+        await db.collection("interview_sessions").doc(interviewId).update({
             status: "in-progress",
-            candidateId: candidateId,
+            updatedAt: new Date(),
+            startedAt: session.startedAt || new Date(),
         });
+
+        const driveDoc = session.driveId
+            ? await db.collection("interview_drives").doc(session.driveId).get()
+            : null;
+        const driveData = driveDoc?.data() as any;
 
         return {
             success: true,
             interview: {
-                ...interview,
-                id: interviewDoc.id,
+                id: sessionDoc.id,
+                role: driveData?.role || session.role || "Interview",
+                level: session.level || "mid-level",
+                type: session.type || "technical",
+                techstack: session.techstack || [],
+                questions: session.questions || driveData?.questions || [],
+                createdAt: session.createdAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
+                organizationId: session.organizationId || driveData?.organizationId || "",
+                status: "in-progress",
             } as Interview,
         };
     } catch (error) {

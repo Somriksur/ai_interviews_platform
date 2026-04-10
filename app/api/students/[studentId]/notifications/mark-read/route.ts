@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db } from '@/firebase/admin';
 import { getCurrentUser } from '@/lib/actions/auth.action';
+
+const markReadSchema = z
+  .object({
+    notificationIds: z.array(z.string().min(1)).max(10).optional(),
+    markAll: z.boolean().optional(),
+  })
+  .strict();
 
 // PATCH /api/students/[studentId]/notifications/mark-read
 export async function PATCH(
@@ -24,8 +32,15 @@ export async function PATCH(
       }
     }
 
-    const body = await request.json();
-    const { notificationIds, markAll = false } = body;
+    const rawBody = await request.json();
+    const parseResult = markReadSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { notificationIds, markAll = false } = parseResult.data;
 
     console.log(`📖 Marking notifications as read for student ${studentId}:`, {
       markAll,
@@ -38,14 +53,7 @@ export async function PATCH(
       .where('read', '==', false);
 
     // If specific notification IDs provided, filter by them
-    if (!markAll && notificationIds && Array.isArray(notificationIds) && notificationIds.length > 0) {
-      if (notificationIds.length > 10) {
-        return NextResponse.json(
-          { error: 'Cannot mark more than 10 specific notifications at once' },
-          { status: 400 }
-        );
-      }
-      
+    if (!markAll && notificationIds && notificationIds.length > 0) {
       query = db
         .collection('student_notifications')
         .where('studentId', '==', studentId)

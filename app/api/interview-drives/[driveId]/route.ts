@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db as db } from "@/firebase/admin";
 import { getCurrentUser } from "@/lib/actions/auth.action";
+import { getAuthContext } from "@/lib/security/auth-context";
 
 /**
  * GET /api/interview-drives/[driveId]
@@ -11,6 +12,9 @@ export async function GET(
   { params }: { params: Promise<{ driveId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(_request);
+    if (!authResult.ok) return authResult.response;
+
     const { driveId } = await params;
 
     const driveDoc = await db
@@ -25,9 +29,53 @@ export async function GET(
       );
     }
 
+    const driveData = driveDoc.data();
+    const user = authResult.context.user;
+    let allowed = false;
+
+    if (user.role === "organization") {
+      const orgSnapshot = await db
+        .collection("organizations")
+        .where("adminId", "==", user.id)
+        .limit(1)
+        .get();
+      allowed = !orgSnapshot.empty && driveData?.organizationId === orgSnapshot.docs[0].id;
+    } else if (user.role === "college") {
+      const collegeSnapshot = await db
+        .collection("colleges")
+        .where("adminId", "==", user.id)
+        .limit(1)
+        .get();
+      allowed =
+        !collegeSnapshot.empty &&
+        Array.isArray(driveData?.colleges) &&
+        driveData.colleges.includes(collegeSnapshot.docs[0].id);
+    } else if (user.role === "student") {
+      const studentSnapshot = await db
+        .collection("students")
+        .where("userId", "==", user.id)
+        .limit(1)
+        .get();
+
+      if (!studentSnapshot.empty) {
+        const studentId = studentSnapshot.docs[0].id;
+        const sessionSnapshot = await db
+          .collection("interview_sessions")
+          .where("driveId", "==", driveId)
+          .where("studentId", "==", studentId)
+          .limit(1)
+          .get();
+        allowed = !sessionSnapshot.empty;
+      }
+    }
+
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     return NextResponse.json({
       id: driveDoc.id,
-      ...driveDoc.data(),
+      ...driveData,
     });
   } catch (error) {
     console.error("Error fetching interview drive:", error);

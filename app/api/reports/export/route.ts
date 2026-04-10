@@ -1,31 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from "zod";
 import { db as db } from '@/firebase/admin';
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole, requireStudentAccess } from "@/lib/security/guards";
+import { withCanonicalScores } from "@/lib/utils/evaluation-report";
+
+const exportReportsSchema = z
+  .object({
+    reportIds: z.array(z.string().min(1)).min(1),
+    format: z.enum(["pdf", "csv"]),
+  })
+  .strict();
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { reportIds, format } = body;
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
 
-    if (!reportIds || !Array.isArray(reportIds) || reportIds.length === 0) {
+    const roleError = requireRole(authResult.context, ["student", "college", "organization"]);
+    if (roleError) return roleError;
+
+    const rawBody = await request.json();
+    const parseResult = exportReportsSchema.safeParse(rawBody);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'Report IDs are required' },
+        { error: "Invalid request body", details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
+    const { reportIds, format } = parseResult.data;
 
-    if (!format || !['pdf', 'csv'].includes(format)) {
-      return NextResponse.json(
-        { error: 'Invalid format. Must be "pdf" or "csv"' },
-        { status: 400 }
-      );
-    }
-
-    // Fetch all reports
     const reports = await Promise.all(
       reportIds.map(async (reportId) => {
-        const reportDoc = await db.collection('placement_reports').doc(reportId).get();
+        const reportDoc = await db.collection('evaluation_reports').doc(reportId).get();
         if (reportDoc.exists) {
-          const reportData = reportDoc.data();
+          const reportData = withCanonicalScores(reportDoc.data());
+
+          const accessError = await requireStudentAccess(authResult.context, reportData?.studentId);
+          if (accessError) {
+            throw Object.assign(new Error("FORBIDDEN_REPORT_ACCESS"), { status: 403 });
+          }
           
           // Get student details
           let studentData = null;
@@ -70,6 +84,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Unsupported format' }, { status: 400 });
   } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN_REPORT_ACCESS") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     console.error('Error exporting reports:', error);
     return NextResponse.json(
       { error: 'Failed to export reports' },
@@ -110,12 +127,12 @@ function generateCSV(reports: any[]): string {
     report.student?.branch || '',
     report.student?.cgpa || '',
     report.technicalScore || '',
-    report.communicationRating || '',
+    report.communicationScore || '',
     report.overallScore || '',
     report.salaryBand || '',
-    report.placementCategory || '',
+    report.placementCategory || report.recommendation || '',
     (report.strengths || []).join('; '),
-    (report.weaknesses || []).join('; '),
+    (report.weaknesses || report.improvements || []).join('; '),
     report.generatedAt?.toDate?.()?.toISOString() || report.generatedAt || '',
   ]);
 

@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { generateQuestionsWithSpace } from "@/lib/services/ai-model.service";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireRole } from "@/lib/security/guards";
+
+const simpleGenerateSchema = z
+  .object({
+    role: z.string().max(120).optional(),
+    level: z.string().max(80).optional(),
+    type: z.string().max(80).optional(),
+    amount: z.number().int().min(1).max(25).optional(),
+  })
+  .strict();
 
 /**
  * POST /api/ai/simple-generate
@@ -7,8 +19,21 @@ import { generateQuestionsWithSpace } from "@/lib/services/ai-model.service";
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { role, level, type, amount = 3 } = body;
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
+    const roleError = requireRole(authResult.context, ["organization", "college"]);
+    if (roleError) return roleError;
+
+    const rawBody = await request.json();
+    const parseResult = simpleGenerateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const { role, level, type, amount = 3 } = parseResult.data;
 
     console.log("🎯 Simple generate for voice interview:", { role, level, type, amount });
 

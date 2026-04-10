@@ -1,13 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as db } from '@/firebase/admin';
+import { z } from "zod";
+import { getAuthContext } from "@/lib/security/auth-context";
+import { requireOrganizationOwnership } from "@/lib/security/guards";
+
+const jobPostingCreateSchema = z
+  .object({
+    role: z.string().min(1).max(150),
+    skills: z.union([z.string().min(1), z.array(z.string().min(1).max(64)).min(1).max(100)]),
+    vacancies: z.coerce.number().int().min(1).max(100000),
+    salaryRange: z
+      .object({
+        min: z.coerce.number().min(0),
+        max: z.coerce.number().min(0),
+        category: z.enum(["high", "mid", "low"]).optional(),
+      })
+      .strict(),
+    description: z.string().min(1).max(5000),
+    taggedColleges: z.array(z.string().min(1)).max(500).optional(),
+  })
+  .strict();
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId } = await params;
-    const body = await request.json();
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
+    const rawBody = await request.json();
+    const parseResult = jobPostingCreateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const body = parseResult.data;
     
     const {
       role,
@@ -59,11 +92,16 @@ export async function POST(
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
+    const authResult = await getAuthContext(request);
+    if (!authResult.ok) return authResult.response;
+
     const { orgId } = await params;
+    const accessError = await requireOrganizationOwnership(authResult.context, orgId);
+    if (accessError) return accessError;
 
     const snapshot = await db
       .collection('jobPostings')
