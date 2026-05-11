@@ -17,9 +17,9 @@ const submitInterviewSchema = z
 export async function POST(request: NextRequest) {
     try {
         const user = await getCurrentUser();
-        if (!user || user.role !== "candidate") {
+        if (!user || (user.role !== "candidate" && user.role !== "student")) {
             return NextResponse.json(
-                { success: false, error: "Unauthorized" },
+                { success: false, error: "Unauthorized - must be a student or candidate" },
                 { status: 401 }
             );
         }
@@ -94,6 +94,34 @@ export async function POST(request: NextRequest) {
             status: "completed",
             completedAt: new Date(),
             updatedAt: new Date(),
+        });
+
+        // Validate transcript before evaluation
+        if (!transcript || !Array.isArray(transcript) || transcript.length === 0) {
+            console.warn('⚠️ Empty transcript submitted for session:', sessionId);
+            return NextResponse.json(
+                { success: false, error: "Empty transcript - no responses recorded. Please try the interview again." },
+                { status: 400 }
+            );
+        }
+
+        // Check if transcript has any user responses
+        const userResponses = transcript.filter((msg: any) => 
+            msg?.role === 'user' || msg?.role === 'candidate' || msg?.role === 'student'
+        );
+        
+        if (userResponses.length === 0) {
+            console.warn('⚠️ No user responses found in transcript for session:', sessionId);
+            return NextResponse.json(
+                { success: false, error: "No responses detected in transcript. Please ensure your microphone is working and try again." },
+                { status: 400 }
+            );
+        }
+
+        console.log('✅ Transcript validation passed:', {
+            totalMessages: transcript.length,
+            userResponses: userResponses.length,
+            sampleUserResponse: userResponses[0]?.content?.substring(0, 100) + '...'
         });
 
         const questions =

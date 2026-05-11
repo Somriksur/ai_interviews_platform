@@ -102,11 +102,34 @@ export async function GET(
           }
         }
 
-        // Filter by date if provided
-        const evaluatedAt = reportData.aiMetadata?.evaluatedAt?.toDate?.() || 
-                           new Date(reportData.aiMetadata?.evaluatedAt) ||
-                           reportData.createdAt?.toDate?.() ||
-                           new Date();
+        // Filter by date if provided - with proper date validation
+        let evaluatedAt;
+        try {
+          // Try Firebase Timestamp first
+          if (reportData.aiMetadata?.evaluatedAt?.toDate) {
+            evaluatedAt = reportData.aiMetadata.evaluatedAt.toDate();
+          }
+          // Try parsing as date string
+          else if (reportData.aiMetadata?.evaluatedAt) {
+            const parsedDate = new Date(reportData.aiMetadata.evaluatedAt);
+            evaluatedAt = isNaN(parsedDate.getTime()) ? null : parsedDate;
+          }
+          // Try createdAt as fallback
+          else if (reportData.createdAt?.toDate) {
+            evaluatedAt = reportData.createdAt.toDate();
+          }
+          // Default to current date
+          else {
+            evaluatedAt = new Date();
+          }
+          
+          // Validate the final date
+          if (!evaluatedAt || isNaN(evaluatedAt.getTime())) {
+            evaluatedAt = new Date();
+          }
+        } catch (error) {
+          evaluatedAt = new Date();
+        }
         
         if (startDate && evaluatedAt < new Date(startDate)) {
           return null;

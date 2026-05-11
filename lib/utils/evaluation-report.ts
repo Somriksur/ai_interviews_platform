@@ -30,9 +30,38 @@ export function getCanonicalScores(report: any): CanonicalEvaluationScores {
   };
 }
 
+/**
+ * Recursively remove undefined values from an object
+ * Firestore doesn't allow undefined values
+ */
+function removeUndefinedValues(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefinedValues(item)).filter(item => item !== undefined);
+  }
+
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        if (value !== undefined) {
+          cleaned[key] = removeUndefinedValues(value);
+        }
+      }
+    }
+    return cleaned;
+  }
+
+  return obj;
+}
+
 export function withCanonicalScores(report: any): any {
   const canonical = getCanonicalScores(report);
-  return {
+  const result = {
     ...report,
     ...canonical,
     scores: {
@@ -43,4 +72,7 @@ export function withCanonicalScores(report: any): any {
       overall: canonical.overallScore,
     },
   };
+  
+  // Remove all undefined values to prevent Firestore errors
+  return removeUndefinedValues(result);
 }

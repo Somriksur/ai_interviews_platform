@@ -1,11 +1,10 @@
 "use client";
 
-import { use, useState, useEffect, useRef } from "react";
+import { use, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Vapi from "@vapi-ai/web";
 import { Button } from "@/components/ui/button";
-// Dynamic import for VAPI to avoid SSR issues
-// import Vapi from "@vapi-ai/web";
 
 interface Question {
   text: string;
@@ -27,6 +26,22 @@ interface Message {
   timestamp: Date;
 }
 
+interface VapiTokenResponse {
+  token?: string;
+  value?: string;
+  error?: string;
+  message?: string;
+}
+
+type VapiErrorLike = {
+  type?: string;
+  stage?: string;
+  message?: string;
+  error?: unknown;
+  errorMsg?: string;
+  action?: string;
+};
+
 export default function ConductInterviewPage({
   params,
 }: {
@@ -37,68 +52,56 @@ export default function ConductInterviewPage({
   const [drive, setDrive] = useState<InterviewDrive | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInterviewActive, setIsInterviewActive] = useState(false);
+  const [isStartingInterview, setIsStartingInterview] = useState(false);
   const [transcript, setTranscript] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   const vapiRef = useRef<any>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    checkInterviewStatus();
-    fetchInterviewDrive();
-    return () => {
-      // Cleanup VAPI on unmount
-      if (vapiRef.current) {
-        vapiRef.current.stop();
-      }
-    };
-  }, [driveId, studentId]);
-
-  const checkInterviewStatus = async () => {
+  const checkInterviewStatus = useCallback(async () => {
     try {
-      // Check if interview is already completed
       const sessionsResponse = await fetch(`/api/students/${studentId}/assigned-interviews`);
       if (sessionsResponse.ok) {
         const { interviews } = await sessionsResponse.json();
         const thisInterview = interviews.find((i: any) => i.driveId === driveId);
-        
-        if (thisInterview && thisInterview.status === 'completed') {
-          // Redirect to complete page
+
+        if (thisInterview && thisInterview.status === "completed") {
           router.push(`/student/${studentId}/interview/${driveId}/complete`);
           return;
         }
       }
 
-      // Check if student has been selected/rejected
       const dashboardResponse = await fetch(`/api/students/${studentId}/dashboard`);
       if (dashboardResponse.ok) {
         const dashboardData = await dashboardResponse.json();
         const selectionStatus = dashboardData.selectionStatus?.find(
           (s: any) => s.driveId === driveId
         );
-        
-        if (selectionStatus && (selectionStatus.status === 'selected' || selectionStatus.status === 'rejected')) {
-          // Redirect back to interview page
+
+        if (
+          selectionStatus &&
+          (selectionStatus.status === "selected" || selectionStatus.status === "rejected")
+        ) {
           router.push(`/student/${studentId}/interview/${driveId}`);
           return;
         }
       }
     } catch (err) {
-      console.error('Error checking interview status:', err);
+      console.error("Error checking interview status:", err);
     }
-  };
+  }, [driveId, router, studentId]);
 
   useEffect(() => {
-    // Auto-scroll to bottom of transcript
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcript]);
 
-  const fetchInterviewDrive = async () => {
+  const fetchInterviewDrive = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/interview-drives/${driveId}`);
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch interview drive");
       }
@@ -111,46 +114,166 @@ export default function ConductInterviewPage({
     } finally {
       setLoading(false);
     }
+  }, [driveId]);
+
+  const stopVapiCall = useCallback(async () => {
+    if (!vapiRef.current) {
+      return;
+    }
+
+    try {
+      await vapiRef.current.stop?.();
+    } catch (stopError) {
+      console.warn("Ignoring VAPI stop error during cleanup:", stopError);
+    } finally {
+      vapiRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkInterviewStatus();
+    void fetchInterviewDrive();
+
+    return () => {
+      void stopVapiCall();
+    };
+  }, [checkInterviewStatus, fetchInterviewDrive, stopVapiCall]);
+
+  const extractVapiErrorMessage = (rawError: unknown): string => {
+    const errorObj = (rawError ?? {}) as VapiErrorLike;
+
+    if (
+      errorObj.type === "daily-call-object-creation-error" ||
+      errorObj.type === "start-method-error"
+    ) {
+      return "Failed to start the interview call. Please verify microphone permissions and VAPI assistant configuration.";
+    }
+
+    if (errorObj.type === "permission-denied") {
+      return "Microphone permission was denied. Please allow microphone access and try again.";
+    }
+
+    if (
+      errorObj.action === "error" &&
+      typeof errorObj.errorMsg === "string" &&
+      errorObj.errorMsg.toLowerCase().includes("meeting has ended")
+    ) {
+      return "Interview room ended unexpectedly. Please try starting the interview again.";
+    }
+
+    if (typeof errorObj.message === "string" && errorObj.message.trim().length > 0) {
+      return errorObj.message;
+    }
+
+    if (typeof errorObj.errorMsg === "string" && errorObj.errorMsg.trim().length > 0) {
+      return errorObj.errorMsg;
+    }
+
+    if (
+      typeof errorObj.error === "object" &&
+      errorObj.error !== null &&
+      "msg" in (errorObj.error as Record<string, unknown>)
+    ) {
+      const maybeMessage = (errorObj.error as Record<string, unknown>).msg;
+      if (typeof maybeMessage === "string" && maybeMessage.trim().length > 0) {
+        return maybeMessage;
+      }
+    }
+
+    if (typeof rawError === "string" && rawError.trim().length > 0) {
+      return rawError;
+    }
+
+    return "An unexpected error occurred while starting the interview call.";
+  };
+
+  const getFallbackVapiToken = () => {
+    const publicToken = process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN;
+
+    if (!publicToken) {
+      throw new Error("VAPI is not configured. Missing both token API and public web token.");
+    }
+
+    return publicToken;
+  };
+
+  const fetchVapiToken = async (): Promise<string> => {
+    try {
+      const response = await fetch("/api/vapi/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as VapiTokenResponse;
+
+      if (!response.ok) {
+        console.warn("VAPI token API unavailable, falling back to public token.", {
+          status: response.status,
+          error: payload.error || payload.message || "Unknown token API error",
+        });
+        return getFallbackVapiToken();
+      }
+
+      const token = payload.token || payload.value;
+      if (!token) {
+        console.warn("VAPI token API returned no token, falling back to public token.");
+        return getFallbackVapiToken();
+      }
+
+      return token;
+    } catch (tokenError) {
+      console.warn("VAPI token API request failed, falling back to public token.", tokenError);
+      return getFallbackVapiToken();
+    }
+  };
+
+  const ensureMicrophonePermission = async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Microphone is not supported in this browser.");
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
   };
 
   const initializeVAPI = async () => {
+    if (isStartingInterview || isInterviewActive) {
+      return;
+    }
+
+    setError(null);
+    setIsStartingInterview(true);
+
     try {
       if (!drive || !drive.questions || drive.questions.length === 0) {
-        alert("No questions available for this interview");
-        return;
+        throw new Error("No questions available for this interview");
       }
 
-      // Check if VAPI token is configured
-      const vapiToken = process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN;
-      if (!vapiToken) {
-        setError("VAPI is not configured. Please contact your administrator.");
-        console.error("NEXT_PUBLIC_VAPI_WEB_TOKEN is not set");
-        return;
+      await ensureMicrophonePermission();
+
+      const vapiToken = await fetchVapiToken();
+      const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
+
+      if (!assistantId) {
+        throw new Error("VAPI Assistant ID is not configured. Please contact your administrator.");
       }
 
-      console.log("Initializing VAPI with token:", vapiToken.substring(0, 8) + "...");
+      const VapiConstructor = (Vapi as any).default || Vapi;
 
-      // Dynamic import VAPI to avoid SSR issues
-      const VapiModule = await import("@vapi-ai/web");
-      const Vapi = (VapiModule.default || VapiModule) as any;
-      
-      // Initialize VAPI
-      const vapi = new Vapi(vapiToken);
+      await stopVapiCall();
+
+      const vapi = new (VapiConstructor as any)(vapiToken);
       vapiRef.current = vapi;
 
-      // Prepare questions for the system message
       const sortedQuestions = [...drive.questions].sort((a, b) => a.order - b.order);
-      const questionsText = sortedQuestions
-        .map((q, i) => `${i + 1}. ${q.text}`)
-        .join("\n");
+      const questionsText = sortedQuestions.map((q, i) => `${i + 1}. ${q.text}`).join("\n");
 
-      // Set up event listeners
       vapi.on("call-start", () => {
-        console.log("Call started");
         setIsInterviewActive(true);
+        setError(null);
         addMessage("assistant", "Hello! Let's begin the interview.");
-        
-        // Send comprehensive system prompt with interview questions
+
         vapi.send({
           type: "add-message",
           message: {
@@ -201,22 +324,11 @@ Start by greeting the candidate, explaining the English-only requirement, and as
       });
 
       vapi.on("call-end", () => {
-        console.log("Call ended");
         setIsInterviewActive(false);
-        handleInterviewEnd();
-      });
-
-      vapi.on("speech-start", () => {
-        console.log("User started speaking");
-      });
-
-      vapi.on("speech-end", () => {
-        console.log("User stopped speaking");
+        void handleInterviewEnd();
       });
 
       vapi.on("message", (message: any) => {
-        console.log("Message received:", message);
-        
         if (message.type === "transcript" && message.transcriptType === "final") {
           if (message.role === "user") {
             addMessage("user", message.transcript);
@@ -226,45 +338,22 @@ Start by greeting the candidate, explaining the English-only requirement, and as
         }
       });
 
-      vapi.on("error", (error: any) => {
-        console.error("VAPI error details:", {
-          error,
-          message: error?.message,
-          code: error?.code,
-          details: error?.details,
-          stack: error?.stack,
-        });
-        
-        let errorMessage = "An error occurred during the interview";
-        if (error?.message) {
-          errorMessage += `: ${error.message}`;
-        }
-        
-        setError(errorMessage);
+      vapi.on("error", (vapiError: unknown) => {
+        const message = extractVapiErrorMessage(vapiError);
+        console.error("VAPI error:", vapiError);
+        setError(message);
         setIsInterviewActive(false);
       });
 
-      // Start the call with assistant ID
-      const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
-      
-      if (!assistantId) {
-        setError("VAPI Assistant ID is not configured. Please contact your administrator.");
-        console.error("NEXT_PUBLIC_VAPI_ASSISTANT_ID is not set");
-        return;
-      }
-      
-      console.log("Starting VAPI with assistant:", assistantId);
-      console.log("Interview questions:", questionsText);
-      
-      // Use assistant as-is (you'll need to configure questions in VAPI dashboard)
       await vapi.start(assistantId);
-
-      // Create session in database
       await createInterviewSession();
     } catch (err) {
       console.error("Error initializing VAPI:", err);
-      setError("Failed to start interview. Please check your microphone permissions.");
+      setError(extractVapiErrorMessage(err));
       setIsInterviewActive(false);
+      await stopVapiCall();
+    } finally {
+      setIsStartingInterview(false);
     }
   };
 
@@ -301,37 +390,54 @@ Start by greeting the candidate, explaining the English-only requirement, and as
   };
 
   const handleEndInterview = async () => {
-    if (vapiRef.current) {
-      vapiRef.current.stop();
-    }
+    await stopVapiCall();
     setIsInterviewActive(false);
+
     await handleInterviewEnd();
   };
 
   const handleInterviewEnd = async () => {
-    if (!sessionId) return;
-
     try {
-      // Save transcript to database
-      await fetch(`/api/interview-sessions/${sessionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcript,
-          status: "completed",
-          completedAt: new Date(),
-        }),
-      });
+      if (sessionId) {
+        await fetch(`/api/interview-sessions/${sessionId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcript,
+            status: "completed",
+            completedAt: new Date().toISOString(),
+          }),
+        });
+      } else {
+        console.warn("No session ID - creating minimal session for evaluation");
 
-      // Redirect to completion page
+        try {
+          const createResponse = await fetch("/api/interview-sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              driveId,
+              studentId,
+              status: "completed",
+              completedAt: new Date().toISOString(),
+              transcript: transcript.length > 0 ? transcript : [],
+            }),
+          });
+
+          if (!createResponse.ok) {
+            console.error("Failed to create minimal session");
+          }
+        } catch (createError) {
+          console.error("Error creating minimal session:", createError);
+        }
+      }
+
       router.push(`/student/${studentId}/interview/${driveId}/complete`);
     } catch (err) {
       console.error("Error saving interview:", err);
-      setError("Failed to save interview. Please try again.");
+      router.push(`/student/${studentId}/interview/${driveId}/complete`);
     }
   };
-
-
 
   if (loading) {
     return (
@@ -346,12 +452,38 @@ Start by greeting the candidate, explaining the English-only requirement, and as
 
   if (error || !drive) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">{error || "Interview not found"}</p>
-          <Link href={`/student/${studentId}/interview/${driveId}`}>
-            <Button variant="outline">← Back</Button>
-          </Link>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-6">
+        <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Voice Interview Unavailable</h2>
+            <p className="text-red-500 mb-4">{error || "Interview not found"}</p>
+          </div>
+
+          {error && drive && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
+              <h3 className="font-semibold mb-3 text-blue-900 dark:text-blue-100">Alternative Option</h3>
+              <p className="text-sm text-blue-800 dark:text-blue-200 mb-4">
+                The voice interview system is currently unavailable. You can still complete this interview and receive your evaluation by submitting it without voice recording.
+              </p>
+              <p className="text-sm text-blue-800 dark:text-blue-200 mb-4">
+                Your submission will be evaluated based on the interview questions, and you'll receive a detailed report.
+              </p>
+              <Button onClick={handleEndInterview} size="lg" className="w-full">
+                Complete Interview Without Voice
+              </Button>
+            </div>
+          )}
+
+          <div className="text-center">
+            <Link href={`/student/${studentId}/interview/${driveId}`}>
+              <Button variant="outline">← Back to Interview Details</Button>
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -360,7 +492,6 @@ Start by greeting the candidate, explaining the English-only requirement, and as
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">{drive.name}</h1>
@@ -377,11 +508,10 @@ Start by greeting the candidate, explaining the English-only requirement, and as
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Transcript Panel */}
           <div className="lg:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 h-[600px] flex flex-col">
               <h2 className="text-xl font-semibold mb-4">Interview Transcript</h2>
-              
+
               <div className="flex-1 overflow-y-auto space-y-4 mb-4">
                 {transcript.length === 0 ? (
                   <div className="text-center text-gray-500 py-12">
@@ -391,9 +521,7 @@ Start by greeting the candidate, explaining the English-only requirement, and as
                   transcript.map((message, index) => (
                     <div
                       key={index}
-                      className={`flex ${
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      }`}
+                      className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                     >
                       <div
                         className={`max-w-[80%] p-3 rounded-lg ${
@@ -402,13 +530,9 @@ Start by greeting the candidate, explaining the English-only requirement, and as
                             : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
                         }`}
                       >
-                        <p className="text-sm font-medium mb-1">
-                          {message.role === "user" ? "You" : "Interviewer"}
-                        </p>
+                        <p className="text-sm font-medium mb-1">{message.role === "user" ? "You" : "Interviewer"}</p>
                         <p>{message.content}</p>
-                        <p className="text-xs opacity-70 mt-1">
-                          {message.timestamp.toLocaleTimeString()}
-                        </p>
+                        <p className="text-xs opacity-70 mt-1">{message.timestamp.toLocaleTimeString()}</p>
                       </div>
                     </div>
                   ))
@@ -416,23 +540,13 @@ Start by greeting the candidate, explaining the English-only requirement, and as
                 <div ref={transcriptEndRef} />
               </div>
 
-              {/* Controls */}
               <div className="border-t pt-4">
                 {!isInterviewActive ? (
-                  <Button
-                    onClick={initializeVAPI}
-                    size="lg"
-                    className="w-full"
-                  >
-                    🎤 Start Interview
+                  <Button onClick={initializeVAPI} size="lg" className="w-full" disabled={isStartingInterview}>
+                    {isStartingInterview ? "Starting Interview..." : "🎤 Start Interview"}
                   </Button>
                 ) : (
-                  <Button
-                    onClick={handleEndInterview}
-                    size="lg"
-                    variant="destructive"
-                    className="w-full"
-                  >
+                  <Button onClick={handleEndInterview} size="lg" variant="destructive" className="w-full">
                     ⏹️ End Interview
                   </Button>
                 )}
@@ -440,7 +554,6 @@ Start by greeting the candidate, explaining the English-only requirement, and as
             </div>
           </div>
 
-          {/* Questions Panel */}
           <div className="lg:col-span-1">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 sticky top-6">
               <h2 className="text-xl font-semibold mb-4">Interview Questions</h2>
@@ -448,13 +561,8 @@ Start by greeting the candidate, explaining the English-only requirement, and as
                 {drive.questions
                   ?.sort((a, b) => a.order - b.order)
                   .map((question, index) => (
-                    <div
-                      key={index}
-                      className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                    >
-                      <span className="font-medium text-blue-600 dark:text-blue-400">
-                        Q{index + 1}.
-                      </span>
+                    <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <span className="font-medium text-blue-600 dark:text-blue-400">Q{index + 1}.</span>
                       <p className="text-sm mt-1">{question.text}</p>
                     </div>
                   ))}

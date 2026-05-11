@@ -4,6 +4,7 @@ import { db } from "@/firebase/admin";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import ExportPDFButton from "@/components/ExportPDFButton";
+import InterviewIssueHandler from "@/components/InterviewIssueHandler";
 
 export default async function FeedbackPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = await params;
@@ -30,6 +31,8 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
         : null;
     const drive = driveDoc?.data() || {};
 
+    const currentScore = Number(report.overallScore ?? report.scores?.overall ?? 0);
+
     return (
         <div className="container mx-auto p-6 max-w-4xl space-y-6">
             <div className="flex justify-between items-center">
@@ -39,7 +42,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                         interviewData={{
                             candidateName: user.name || "Unknown",
                             role: drive.role || session?.role || "Interview",
-                            score: Number(report.overallScore ?? report.scores?.overall ?? 0),
+                            score: currentScore,
                             questions: report.transcript?.questionResponses?.map((qr: any) => qr.question) || [],
                             answers: report.transcript?.questionResponses?.map((qr: any) => qr.response) || [],
                         }}
@@ -49,6 +52,14 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                     </Button>
                 </div>
             </div>
+
+            {/* Interview Issue Handler - shows for low scores and diagnoses the problem */}
+            <InterviewIssueHandler 
+                evaluationId={feedbackId}
+                currentScore={currentScore}
+                driveId={session?.driveId || drive?.id}
+                studentId={report.studentId}
+            />
 
             <div className="card p-6 space-y-4">
                 <div>
@@ -69,7 +80,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ id: s
                 <div className="text-center mb-6">
                     <h3 className="text-lg font-semibold mb-2">Overall Score</h3>
                     <div className="text-6xl font-bold text-primary">
-                        {Number(report.overallScore ?? report.scores?.overall ?? 0)}
+                        {currentScore}
                         <span className="text-2xl">/100</span>
                     </div>
                 </div>

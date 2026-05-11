@@ -191,7 +191,7 @@ export default function CollegeMessagesPage() {
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-background">
       <CollegeNavigation collegeId={collegeId} />
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
@@ -401,6 +401,6 @@ export default function CollegeMessagesPage() {
         )}
       </div>
       </div>
-    </>
+    </div>
   );
 }

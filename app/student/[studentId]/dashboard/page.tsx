@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { StudentNavigation } from "@/components/student/Navigation";
+import { LearningPathCard } from "@/components/student/LearningPathCard";
 
 interface DashboardData {
   student: {
@@ -172,9 +173,17 @@ export default function StudentDashboard() {
 
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [learningPath, setLearningPath] = useState<any>(null);
+  const [learningPathLoading, setLearningPathLoading] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
+    // Parallel API calls for better performance
+    Promise.all([
+      fetchDashboardData(),
+      fetchLearningPath()
+    ]).catch(error => {
+      console.error('Error loading dashboard:', error);
+    });
   }, [studentId]);
 
   const fetchDashboardData = async () => {
@@ -196,6 +205,23 @@ export default function StudentDashboard() {
       toast.error('Error loading dashboard');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLearningPath = async () => {
+    try {
+      setLearningPathLoading(true);
+      const response = await fetch(`/api/students/${studentId}/learning-path`);
+      if (response.ok) {
+        const data = await response.json();
+        setLearningPath(data.data);
+      } else {
+        console.log('Learning path not available yet');
+      }
+    } catch (error) {
+      console.error('Error fetching learning path:', error);
+    } finally {
+      setLearningPathLoading(false);
     }
   };
 
@@ -263,7 +289,7 @@ export default function StudentDashboard() {
   const { student, statistics, recentNotifications, unreadCount, assignedDrives, selectionStatus, summary } = dashboardData;
 
   return (
-    <>
+    <div className="min-h-screen bg-background">
       <StudentNavigation studentId={studentId} />
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
@@ -510,7 +536,38 @@ export default function StudentDashboard() {
           <RecentReports studentId={studentId} />
         </CardContent>
       </Card>
+
+      {/* AI Learning Path - TOP 1% FEATURE */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            🎯 AI Learning Path
+            <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+              TOP 1% AI
+            </Badge>
+          </CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Personalized skill development recommendations powered by advanced AI
+          </p>
+        </CardHeader>
+        <CardContent>
+          {learningPathLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-sm text-muted-foreground mt-2">Generating your learning path...</p>
+            </div>
+          ) : learningPath ? (
+            <LearningPathCard data={learningPath} loading={false} />
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">
+                Complete an interview to get your personalized AI learning path
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       </div>
-    </>
+    </div>
   );
 }

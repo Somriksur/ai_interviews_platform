@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Fix All Interviews</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"], input[type="date"], input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            background: #dc3545;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 18px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #c82333;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .result-card {
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+        .result-success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .result-error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .score-change {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .improvement {
+            color: #28a745;
+        }
+        .no-change {
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Batch Fix All Interviews</h1>
+            <p>This tool will find and fix all interviews with the "No response recorded" issue</p>
+        </div>
+
+        <div class="warning">
+            <h3>⚠️ Important Notice</h3>
+            <p>This tool will re-evaluate multiple interviews at once. This process:</p>
+            <ul>
+                <li>Will automatically find interviews with low scores or missing responses</li>
+                <li>Re-processes them with the enhanced evaluation system</li>
+                <li>Updates the scores to reflect actual performance</li>
+                <li>May take several minutes to complete</li>
+            </ul>
+            <p><strong>This is safe to run and will only improve your scores!</strong></p>
+        </div>
+
+        <form id="batchFixForm">
+            <div class="form-group">
+                <label for="studentId">Student ID (optional - leave blank to fix all students):</label>
+                <input type="text" id="studentId" name="studentId" placeholder="Enter specific student ID or leave blank">
+            </div>
+
+            <div class="form-group">
+                <label for="driveId">Drive ID (optional - leave blank to fix all drives):</label>
+                <input type="text" id="driveId" name="driveId" placeholder="Enter specific drive ID or leave blank">
+            </div>
+
+            <div class="form-group">
+                <label for="dateFrom">From Date (optional):</label>
+                <input type="date" id="dateFrom" name="dateFrom">
+            </div>
+
+            <div class="form-group">
+                <label for="dateTo">To Date (optional):</label>
+                <input type="date" id="dateTo" name="dateTo">
+            </div>
+
+            <div class="form-group">
+                <label for="maxFixes">Maximum interviews to fix:</label>
+                <input type="number" id="maxFixes" name="maxFixes" value="20" min="1" max="100">
+            </div>
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="forceAll" name="forceAll">
+                    <label for="forceAll">Force fix all interviews (even those without obvious issues)</label>
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn">🚀 Fix All Interviews</button>
+        </form>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('batchFixForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const result = document.getElementById('result');
+            
+            const formData = {
+                studentId: document.getElementById('studentId').value.trim() || undefined,
+                driveId: document.getElementById('driveId').value.trim() || undefined,
+                dateFrom: document.getElementById('dateFrom').value || undefined,
+                dateTo: document.getElementById('dateTo').value || undefined,
+                maxFixes: parseInt(document.getElementById('maxFixes').value) || 20,
+                forceAll: document.getElementById('forceAll').checked
+            };
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.textContent = '🔄 Processing...';
+            showResult('Starting batch fix process... This may take several minutes.', 'loading');
+            
+            try {
+                const response = await fetch('/api/debug/batch-fix-interviews', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showBatchResults(data);
+                } else {
+                    showResult(data.error || 'Failed to perform batch fix', 'error');
+                }
+            } catch (error) {
+                showResult('Network error: ' + error.message, 'error');
+                console.error('Network error:', error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🚀 Fix All Interviews';
+            }
+        });
+        
+        function showResult(message, type) {
+            const result = document.getElementById('result');
+            result.className = `result ${type}`;
+            result.innerHTML = message;
+            result.style.display = 'block';
+        }
+        
+        function showBatchResults(data) {
+            const summary = data.summary;
+            const results = data.results || [];
+            
+            let html = `
+                <h3>✅ Batch Fix Completed!</h3>
+                <p>${data.message}</p>
+                
+                <div style="background: #e7f3ff; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                    <h4>📊 Summary:</h4>
+                    <p><strong>Total Checked:</strong> ${summary.totalChecked} evaluations</p>
+                    <p><strong>Problematic Found:</strong> ${summary.problematicFound}</p>
+                    <p><strong>Fixes Attempted:</strong> ${summary.fixesAttempted}</p>
+                    <p><strong>Successful:</strong> ${summary.successCount}</p>
+                    <p><strong>Failed:</strong> ${summary.errorCount}</p>
+                    ${data.averageImprovement ? `<p><strong>Average Score Improvement:</strong> +${Math.round(data.averageImprovement)} points</p>` : ''}
+                </div>
+            `;
+            
+            if (results.length > 0) {
+                html += '<h4>📋 Individual Results:</h4><div class="results-grid">';
+                
+                results.forEach(result => {
+                    const cardClass = result.success ? 'result-success' : 'result-error';
+                    const improvement = result.improvement || 0;
+                    const improvementClass = improvement > 0 ? 'improvement' : 'no-change';
+                    
+                    html += `
+                        <div class="result-card ${cardClass}">
+                            <div><strong>ID:</strong> ${result.evaluationId.substring(0, 8)}...</div>
+                            ${result.success ? `
+                                <div class="score-change ${improvementClass}">
+                                    ${result.oldScore} → ${result.newScore} 
+                                    ${improvement > 0 ? `(+${improvement})` : ''}
+                                </div>
+                                <div><small>Responses found: ${result.userResponsesFound}</small></div>
+                            ` : `
+                                <div style="color: #721c24; margin-top: 10px;">
+                                    <strong>Error:</strong> ${result.error}
+                                </div>
+                            `}
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+            }
+            
+            html += `
+                <div style="margin-top: 20px; padding: 15px; background: #d4edda; border-radius: 6px;">
+                    <p><strong>🎉 What's Next?</strong></p>
+                    <p>Your interviews have been re-evaluated! Refresh your feedback pages to see the updated scores.</p>
+                    <p>The system has now properly captured and evaluated your actual responses instead of showing "No response recorded".</p>
+                </div>
+            `;
+            
+            showResult(html, 'success');
+        }
+        
+        // Set default date range (last 30 days)
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+        
+        document.getElementById('dateTo').value = today.toISOString().split('T')[0];
+        document.getElementById('dateFrom').value = thirtyDaysAgo.toISOString().split('T')[0];
+    </script>
+</body>
+</html>

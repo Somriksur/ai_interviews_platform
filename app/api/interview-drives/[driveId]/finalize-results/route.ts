@@ -102,6 +102,18 @@ export async function POST(
       );
     }
 
+    // Check if already finalized
+    if (driveData.finalized === true) {
+      return NextResponse.json(
+        { 
+          error: "Drive results already finalized",
+          version: driveData.finalizedVersion,
+          finalizedAt: driveData.finalizedAt,
+        },
+        { status: 400 }
+      );
+    }
+
     const ownershipError = await requireOrganizationOwnership(authResult.context, orgId);
     if (ownershipError) return ownershipError;
 
@@ -204,6 +216,13 @@ export async function POST(
       persistRankingSnapshot(rankings, { version, generatedAt }),
       computeAndStorePlacementReadiness(readinessAttemptsByStudent, { version, generatedAt }),
     ]);
+
+    // Mark drive as finalized
+    await db.collection("interview_drives").doc(driveId).update({
+      finalized: true,
+      finalizedAt: generatedAt,
+      finalizedVersion: version,
+    });
 
     return NextResponse.json({
       success: true,

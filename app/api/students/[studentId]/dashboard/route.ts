@@ -52,30 +52,65 @@ export async function GET(
       ...doc.data(),
     }));
 
-    // Canonical source is interview_sessions only
-    const allInterviews = [...interviewSessions];
+    // Group sessions by driveId and keep only the latest session for each drive
+    const sessionsByDrive = new Map();
+    interviewSessions.forEach((session: any) => {
+      if (!session.driveId) return;
+      
+      const existing = sessionsByDrive.get(session.driveId);
+      const sessionTime = session.createdAt?.toMillis?.() || 0;
+      const existingTime = existing?.createdAt?.toMillis?.() || 0;
+      
+      // Keep the most recent session for each drive
+      if (!existing || sessionTime > existingTime) {
+        sessionsByDrive.set(session.driveId, session);
+      }
+    });
 
-    // Calculate statistics
+    // Use only unique sessions (one per drive)
+    const allInterviews = Array.from(sessionsByDrive.values());
+
+    // Calculate statistics based on unique interviews
     const totalInterviews = allInterviews.length;
     const completedInterviews = allInterviews.filter((i: any) => i.status === 'completed');
     const pendingInterviews = allInterviews.filter(
-      (i: any) => i.status === 'pending' || i.status === 'in_progress' || i.status === 'in-progress' || i.status === 'not_started'
+      (i: any) => i.status === 'pending' || i.status === 'in_progress' || i.status === 'in-progress' || i.status === 'assigned'
     );
     
-    // Calculate average score from completed interviews
-    const scoresFromCompleted = completedInterviews
-      .map((i: any) => i.overallScore || i.score)
+    // Calculate average score from evaluation reports (more accurate)
+    const reportsSnapshot = await db
+      .collection('evaluation_reports')
+      .where('studentId', '==', studentId)
+      .get();
+    
+    const scores = reportsSnapshot.docs
+      .map(doc => doc.data()?.overallScore)
       .filter(score => typeof score === 'number' && score > 0);
     
-    const averageScore = scoresFromCompleted.length > 0 
-      ? scoresFromCompleted.reduce((sum, score) => sum + score, 0) / scoresFromCompleted.length
+    const averageScore = scores.length > 0 
+      ? scores.reduce((sum, score) => sum + score, 0) / scores.length
       : 0;
+
+    // Get selection counts
+    const selectionsSnapshot = await db
+      .collection('student_selections')
+      .where('studentId', '==', studentId)
+      .where('status', '==', 'selected')
+      .get();
+    
+    const rejectionsSnapshot = await db
+      .collection('student_selections')
+      .where('studentId', '==', studentId)
+      .where('status', '==', 'rejected')
+      .get();
 
     const statistics = {
       totalInterviews,
       pendingInterviews: pendingInterviews.length,
       completedInterviews: completedInterviews.length,
       averageScore: Math.round(averageScore * 100) / 100,
+      selections: selectionsSnapshot.size,
+      rejections: rejectionsSnapshot.size,
     };
 
     // Get recent notifications (last 10)
@@ -178,7 +213,12 @@ export async function GET(
         ...studentData,
         collegeName,
       },
-      statistics,
+      statistics: {
+        totalInterviews,
+        pendingInterviews: pendingInterviews.length,
+        completedInterviews: completedInterviews.length,
+        averageScore: Math.round(averageScore * 100) / 100,
+      },
       recentNotifications: serializedNotifications,
       unreadCount,
       assignedDrives: serializedDrives,
@@ -187,8 +227,8 @@ export async function GET(
         totalDrives: assignedDrives.length,
         completedDrives: completedDriveIds.size,
         pendingDrives: assignedDrives.length - completedDriveIds.size,
-        selectedCount: selectionStatus.filter(s => s.status === 'selected').length,
-        rejectedCount: selectionStatus.filter(s => s.status === 'rejected').length,
+        selectedCount: selectionsSnapshot.size,
+        rejectedCount: rejectionsSnapshot.size,
       },
     };
 

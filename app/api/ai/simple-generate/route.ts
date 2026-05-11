@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { generateQuestionsWithSpace } from "@/lib/services/ai-model.service";
+import { hybridQuestionGeneration } from "@/lib/services/hybrid-question-generation.service";
 import { getAuthContext } from "@/lib/security/auth-context";
 import { requireRole } from "@/lib/security/guards";
 
@@ -35,17 +35,13 @@ export async function POST(request: NextRequest) {
     }
     const { role, level, type, amount = 3 } = parseResult.data;
 
-    console.log("🎯 Simple generate for voice interview:", { role, level, type, amount });
-
-    // Use the same role-based approach as the main generate-questions endpoint
-    const result = await generateQuestionsWithSpace({
+    // Use hybrid service - automatically handles ML + fallback
+    const result = await hybridQuestionGeneration.generateQuestions({
       role: role || "Software Engineer",
       level: level || "Mid-level", 
       type: type || "Technical",
       amount
     });
-
-    console.log(`✅ Generated ${result.questions.length} questions for voice interview`);
 
     return NextResponse.json({
       questions: result.questions,

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Interview System Fixes</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 10px; padding: 10px; border-radius: 3px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Interview System Fixes Test</h1>
+    
+    <div class="test-section info">
+        <h3>📋 Fixed Issues Summary</h3>
+        <ul>
+            <li>✅ Firestore index for student_notifications</li>
+            <li>✅ JavaScript error in interview page (q.substring)</li>
+            <li>✅ Authorization for both "student" and "candidate" roles</li>
+            <li>✅ Build error with 'eval' variable name</li>
+            <li>✅ Next.js cache and module loading issues</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>🔍 Test 1: Student Notifications API</h3>
+        <p>Testing the student notifications endpoint that was failing with Firestore index error.</p>
+        <button onclick="testNotifications()">Test Notifications API</button>
+        <div id="notifications-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🎤 Test 2: Interview Session Creation</h3>
+        <p>Testing the retake interview functionality that needed Firestore indexes.</p>
+        <button onclick="testRetakeInterview()">Test Retake Interview</button>
+        <div id="retake-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Test 3: User Authentication</h3>
+        <p>Testing the current user session and role verification.</p>
+        <button onclick="testAuth()">Test Authentication</button>
+        <div id="auth-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔧 Test 4: Transcript Analysis</h3>
+        <p>Testing the debug endpoint for transcript analysis.</p>
+        <button onclick="testTranscriptAnalysis()">Test Transcript Analysis</button>
+        <div id="transcript-result" class="result"></div>
+    </div>
+
+    <script>
+        async function testNotifications() {
+            const resultDiv = document.getElementById('notifications-result');
+            resultDiv.innerHTML = '<p>🔄 Testing notifications API...</p>';
+            
+            try {
+                const response = await fetch('/api/students/9UZX1nHmRYb9mon9sxe0/notifications?read=false&limit=1');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Success!</h4>
+                            <p>Notifications API is working properly.</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Error</h4>
+                            <p>Status: ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Network Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testRetakeInterview() {
+            const resultDiv = document.getElementById('retake-result');
+            resultDiv.innerHTML = '<p>🔄 Testing retake interview API...</p>';
+            
+            try {
+                const response = await fetch('/api/candidate/retake-interview', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        driveId: 'sR0KX5T3sIVMWsQ01jIb'
+                    })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Success!</h4>
+                            <p>Retake interview API is working properly.</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Error</h4>
+                            <p>Status: ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Network Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testAuth() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.innerHTML = '<p>🔄 Testing authentication...</p>';
+            
+            try {
+                const response = await fetch('/api/auth/me');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Success!</h4>
+                            <p>User authentication is working properly.</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Error</h4>
+                            <p>Status: ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Network Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testTranscriptAnalysis() {
+            const resultDiv = document.getElementById('transcript-result');
+            resultDiv.innerHTML = '<p>🔄 Testing transcript analysis...</p>';
+            
+            try {
+                const response = await fetch('/api/debug/transcript-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        evaluationId: 'zZpcHWQvhdP7Ody8mzhD'
+                    })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Success!</h4>
+                            <p>Transcript analysis API is working properly.</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Error</h4>
+                            <p>Status: ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Network Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            console.log('🚀 Interview System Fixes Test Page Loaded');
+            console.log('Click the test buttons to verify that all fixes are working properly.');
+        });
+    </script>
+</body>
+</html>

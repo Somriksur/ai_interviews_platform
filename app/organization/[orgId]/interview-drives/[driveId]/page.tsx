@@ -11,6 +11,7 @@ interface Drive {
   role: string;
   colleges: string[];
   status: string;
+  finalized?: boolean;
   createdAt: any;
   interviewConfig?: {
     level: string;
@@ -35,6 +36,8 @@ export default function DriveDetailsPage({
   const [drive, setDrive] = useState<Drive | null>(null);
   const [colleges, setColleges] = useState<College[]>([]);
   const [loading, setLoading] = useState(true);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDriveDetails();
@@ -50,17 +53,72 @@ export default function DriveDetailsPage({
 
         // Fetch college details
         if (driveData.colleges && driveData.colleges.length > 0) {
-          const collegePromises = driveData.colleges.map((collegeId: string) =>
-            fetch(`/api/colleges/${collegeId}`).then((res) => res.json())
-          );
+          const collegePromises = driveData.colleges.map(async (collegeId: string) => {
+            try {
+              const res = await fetch(`/api/colleges/${collegeId}`);
+              if (res.ok) {
+                return await res.json();
+              }
+              return null;
+            } catch (error) {
+              console.error(`Error fetching college ${collegeId}:`, error);
+              return null;
+            }
+          });
           const collegesData = await Promise.all(collegePromises);
-          setColleges(collegesData);
+          // Filter out null values from failed requests
+          setColleges(collegesData.filter((c): c is College => c !== null && c.id));
         }
       }
     } catch (error) {
       console.error("Error fetching drive details:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateResults = async () => {
+    if (!confirm("Generate rankings and readiness scores for this drive? This action will finalize all evaluation results.")) {
+      return;
+    }
+
+    setFinalizing(true);
+    setFinalizeError(null);
+
+    try {
+      const response = await fetch(`/api/interview-drives/${driveId}/finalize-results`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate results");
+      }
+
+      const result = await response.json();
+      console.log("✅ Results generated:", result);
+
+      // Update drive state
+      setDrive((prev) => prev ? { ...prev, finalized: true } : null);
+
+      alert(`Results generated successfully!\n\nRankings: ${result.rankingCount}\nReadiness Scores: ${result.readinessCount}\nVersion: ${result.version}`);
+      
+      // FIX: Auto-redirect to reports page
+      router.push(`/organization/${orgId}/interview-drives/${driveId}/reports`);
+    } catch (error) {
+      console.error("❌ Error generating results:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      
+      // Check if it's an index building error
+      if (errorMessage.includes("currently building") || errorMessage.includes("cannot be used yet")) {
+        setFinalizeError("Database indexes are still building. Please wait 2-3 minutes and try again.");
+        alert("Database indexes are still building. This is normal for new deployments.\n\nPlease wait 2-3 minutes and try again.");
+      } else {
+        setFinalizeError(errorMessage);
+        alert(`Failed to generate results: ${errorMessage}`);
+      }
+    } finally {
+      setFinalizing(false);
     }
   };
 
@@ -148,21 +206,23 @@ export default function DriveDetailsPage({
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Number of Questions</p>
-                  <p className="font-medium">{drive.interviewConfig.amount}</p>
+                  <p className="font-medium">{drive.interviewConfig?.amount || 'N/A'}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Tech Stack</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {drive.interviewConfig.techstack.map((tech, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm"
-                      >
-                        {tech}
-                      </span>
-                    ))}
+                {drive.interviewConfig?.techstack && drive.interviewConfig.techstack.length > 0 && (
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Tech Stack</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {drive.interviewConfig.techstack.map((tech, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm"
+                        >
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>
@@ -177,17 +237,84 @@ export default function DriveDetailsPage({
             <p className="text-gray-600 dark:text-gray-400">No colleges selected</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {colleges.map((college) => (
-                <div
-                  key={college.id}
-                  className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  <h3 className="font-semibold">{college.name}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    {college.location || "Location not specified"}
-                  </p>
+              {colleges.map((college) => {
+                return (
+                  <div key={college.id} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <h3 className="font-semibold">{college.name}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      {college.location || "Location not specified"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Results Generation */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Results & Rankings</h2>
+          {drive?.finalized ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-lg">
+                <span className="text-2xl">✅</span>
+                <div>
+                  <p className="font-semibold">Results Generated</p>
+                  <p className="text-sm">Rankings and readiness scores are available</p>
                 </div>
-              ))}
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => window.location.href = `/organization/${orgId}/analytics`}
+              >
+                📊 View Analytics
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Generate rankings and placement readiness scores for all completed interviews.
+              </p>
+              {finalizeError && (
+                <div className={`mb-4 p-4 rounded-lg ${
+                  finalizeError.includes("building") || finalizeError.includes("wait")
+                    ? "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 border-2 border-yellow-400"
+                    : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200"
+                }`}>
+                  <div className="flex items-start gap-2">
+                    <span className="text-xl">
+                      {finalizeError.includes("building") || finalizeError.includes("wait") ? "⏳" : "❌"}
+                    </span>
+                    <div>
+                      <p className="font-semibold mb-1">
+                        {finalizeError.includes("building") || finalizeError.includes("wait") 
+                          ? "Database Indexes Building" 
+                          : "Error"}
+                      </p>
+                      <p>{finalizeError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <Button
+                onClick={handleGenerateResults}
+                disabled={finalizing}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {finalizing ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Generating Results...
+                  </>
+                ) : (
+                  <>
+                    🎯 Generate Results
+                  </>
+                )}
+              </Button>
+              <p className="text-sm text-gray-500 mt-2">
+                This will compute weighted rankings and readiness scores based on all evaluation reports.
+              </p>
             </div>
           )}
         </div>

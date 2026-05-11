@@ -219,6 +219,7 @@ export default function CollegeStudentsPage({ params }: { params: Promise<{ coll
                     <th className="text-left p-3">Branch</th>
                     <th className="text-left p-3">Year</th>
                     <th className="text-left p-3">CGPA</th>
+                    <th className="text-left p-3">Resume Score</th>
                     <th className="text-right p-3">Actions</th>
                   </tr>
                 </thead>
@@ -236,6 +237,27 @@ export default function CollegeStudentsPage({ params }: { params: Promise<{ coll
                       <td className="p-3">{student.branch}</td>
                       <td className="p-3">{student.year}</td>
                       <td className="p-3">{student.cgpa}</td>
+                      <td className="p-3">
+                        {student.resumeScore !== undefined && student.resumeScore !== null ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${
+                                  student.resumeScore >= 75
+                                    ? 'bg-green-500'
+                                    : student.resumeScore >= 50
+                                    ? 'bg-yellow-500'
+                                    : 'bg-red-500'
+                                }`}
+                                style={{ width: `${student.resumeScore}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium">{student.resumeScore}%</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No resume</span>
+                        )}
+                      </td>
                       <td className="p-3 text-right">
                         <button
                           onClick={(e) => {

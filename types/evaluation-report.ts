@@ -12,6 +12,23 @@ export interface EvaluationScores {
   overall: number; // 0-100
 }
 
+// Multi-modal intelligence: Voice analysis metrics
+export interface VoiceMetrics {
+  speechClarity: number; // 0-100
+  confidence: number; // 0-100
+  hesitation: number; // 0-100 (lower is better)
+  emotionalStability: number; // 0-100
+  overallVoiceScore: number; // 0-100
+  insights?: {
+    speakingPattern: 'fast' | 'moderate' | 'slow';
+    confidenceLevel: 'high' | 'medium' | 'low';
+    stressIndicators: string[];
+    strengths: string[];
+    improvements: string[];
+  };
+  explanation?: string;
+}
+
 export interface QuestionResponse {
   question: string;
   response: string;
@@ -53,6 +70,9 @@ export interface EvaluationReport {
   
   // Evaluation scores
   scores: EvaluationScores;
+  
+  // Multi-modal intelligence: Voice analysis
+  voiceMetrics?: VoiceMetrics;
   
   // Detailed feedback
   feedback: EvaluationFeedback;

@@ -75,7 +75,17 @@ export async function POST(
       branch: requestData?.branch || '',
       year: requestData?.year || 1,
       cgpa: 0,
-      skills: [],
+      skills: requestData?.extractedSkills || [],
+      // Transfer resume data from registration request
+      ...(requestData?.resumeUrl && {
+        resumeUrl: requestData.resumeUrl,
+        extractedSkills: requestData.extractedSkills || [],
+        education: requestData.education || [],
+        projects: requestData.projects || [],
+        experienceLevel: requestData.experienceLevel || 'fresher',
+        resumeScore: requestData.resumeScore || 0,
+        resumeParsedAt: requestData.resumeParsedAt,
+      }),
       registrationStatus: 'approved',
       createdAt: new Date(),
     };

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug User Info</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .error-box {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .success-box {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug User Info & Test Retake</h1>
+        
+        <div class="info-box">
+            <p>This page will help debug the "Unauthorized" error by checking your user role and testing the retake functionality.</p>
+        </div>
+
+        <button onclick="checkUserInfo()">Check My User Info</button>
+        <button onclick="testRetake()">Test Retake Interview</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function checkUserInfo() {
+            const result = document.getElementById('result');
+            result.innerHTML = '<div class="info-box">Checking user info...</div>';
+            
+            try {
+                const response = await fetch('/api/debug/user-info');
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    result.innerHTML = `
+                        <div class="success-box">
+                            <h3>✅ User Info Retrieved</h3>
+                            <pre>${JSON.stringify(data.user, null, 2)}</pre>
+                            <p><strong>Your Role:</strong> ${data.user.role}</p>
+                            <p><strong>Expected Roles:</strong> "candidate" or "student"</p>
+                            ${data.user.role === 'candidate' || data.user.role === 'student' 
+                                ? '<p style="color: green;">✅ Role is compatible!</p>' 
+                                : '<p style="color: red;">❌ Role mismatch - this is the issue!</p>'
+                            }
+                        </div>
+                    `;
+                } else {
+                    result.innerHTML = `
+                        <div class="error-box">
+                            <h3>❌ Not Authenticated</h3>
+                            <p>${data.message}</p>
+                            <p>Please make sure you're logged in to your app first.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="error-box">
+                        <h3>❌ Error</h3>
+                        <p>Network error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testRetake() {
+            const result = document.getElementById('result');
+            
+            // First check user info
+            try {
+                const userResponse = await fetch('/api/debug/user-info');
+                const userData = await userResponse.json();
+                
+                if (!userData.authenticated) {
+                    result.innerHTML = `
+                        <div class="error-box">
+                            <h3>❌ Not Authenticated</h3>
+                            <p>Please log in to your app first, then try again.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Test retake with a sample drive ID
+                const driveId = prompt('Enter a Drive ID to test retake (e.g., sR0KX5T3sIVMWsQ01jIb):');
+                if (!driveId) return;
+
+                result.innerHTML = '<div class="info-box">Testing retake interview...</div>';
+                
+                const retakeResponse = await fetch('/api/candidate/retake-interview', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ driveId: driveId })
+                });
+
+                const retakeData = await retakeResponse.json();
+                
+                if (retakeResponse.ok && retakeData.success) {
+                    result.innerHTML = `
+                        <div class="success-box">
+                            <h3>✅ Retake Test Successful!</h3>
+                            <p><strong>Message:</strong> ${retakeData.message}</p>
+                            <p><strong>Session ID:</strong> ${retakeData.sessionId}</p>
+                            <p><strong>Interview URL:</strong> ${retakeData.interviewUrl}</p>
+                            <button onclick="window.open('${retakeData.interviewUrl}', '_blank')">Open Interview</button>
+                        </div>
+                    `;
+                } else {
+                    result.innerHTML = `
+                        <div class="error-box">
+                            <h3>❌ Retake Test Failed</h3>
+                            <p><strong>Status:</strong> ${retakeResponse.status}</p>
+                            <p><strong>Error:</strong> ${retakeData.error || 'Unknown error'}</p>
+                            <pre>${JSON.stringify(retakeData, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="error-box">
+                        <h3>❌ Test Error</h3>
+                        <p>Network error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-check user info on page load
+        window.onload = function() {
+            checkUserInfo();
+        };
+    </script>
+</body>
+</html>

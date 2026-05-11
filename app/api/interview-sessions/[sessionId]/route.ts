@@ -10,6 +10,13 @@ const updateSessionSchema = z
     transcript: z.array(z.unknown()).optional(),
     status: z.enum(["assigned", "in-progress", "completed"]).optional(),
     completedAt: z.union([z.string(), z.date()]).optional(),
+    voiceMetrics: z.object({
+      speakingRate: z.number().optional(),
+      pauseFrequency: z.number().optional(),
+      averagePauseDuration: z.number().optional(),
+      volumeVariance: z.number().optional(),
+      responseDelay: z.number().optional(),
+    }).optional(),
   })
   .strict();
 
@@ -69,13 +76,19 @@ export async function PATCH(
     const accessError = await authorizeSessionAccess(authResult.context, currentSessionData);
     if (accessError) return accessError;
 
-    const { transcript, status, completedAt } = parseResult.data;
+    const { transcript, status, completedAt, voiceMetrics } = parseResult.data;
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
 
     if (transcript !== undefined) updateData.transcript = transcript;
     if (status !== undefined) updateData.status = status;
+
+    // FIX: Save voice metrics for multi-modal intelligence
+    if (voiceMetrics !== undefined) {
+      updateData.voiceMetrics = voiceMetrics;
+      console.log('✅ Voice metrics saved:', voiceMetrics);
+    }
 
     if (completedAt) {
       const completedAtDate = new Date(completedAt);

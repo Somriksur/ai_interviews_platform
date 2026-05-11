@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/security/auth-context";
 import { requireRole } from "@/lib/security/guards";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
     try {
         const authResult = await getAuthContext(request);

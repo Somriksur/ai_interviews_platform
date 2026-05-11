@@ -26,21 +26,39 @@ const interviewDriveCreateSchema = z
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
+    console.log('🚀 Starting interview drive creation...');
+    
     const authResult = await getAuthContext(request);
-    if (!authResult.ok) return authResult.response;
+    if (!authResult.ok) {
+      console.log('❌ Auth failed');
+      return authResult.response;
+    }
+    console.log('✅ Auth successful');
 
     const { orgId } = await params;
+    console.log('📋 Organization ID:', orgId);
+    
     const accessError = await requireOrganizationOwnership(authResult.context, orgId);
-    if (accessError) return accessError;
+    if (accessError) {
+      console.log('❌ Access denied');
+      return accessError;
+    }
+    console.log('✅ Access granted');
 
     const rawBody = await request.json();
+    console.log('📦 Request body keys:', Object.keys(rawBody));
+    console.log('📦 Questions count:', rawBody.questions?.length || 0);
+    console.log('📦 Colleges count:', rawBody.colleges?.length || 0);
+    
     const parseResult = interviewDriveCreateSchema.safeParse(rawBody);
     if (!parseResult.success) {
+      console.error('❌ Validation failed:', parseResult.error.flatten());
       return NextResponse.json(
         { error: "Invalid request body", details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
+    console.log('✅ Validation passed');
 
     const { name, description, role, colleges, questions, aiMetadata, interviewConfig } = parseResult.data;
 
@@ -74,7 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     console.log(`📝 Creating interview drive with ${questions?.length || 0} questions`);
 
     // Create interview drive
-    const driveRef = await db.collection('interview_drives').add({
+    const driveData = {
       organizationId: orgId,
       name,
       description: description || '',
@@ -92,7 +110,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         completedInterviews: 0,
         averageScore: 0,
       },
+    };
+    
+    console.log('📝 Drive data prepared:', {
+      ...driveData,
+      questions: `${driveData.questions.length} questions`,
+      colleges: `${driveData.colleges.length} colleges`
     });
+    
+    const driveRef = await db.collection('interview_drives').add(driveData);
+    console.log('✅ Drive created with ID:', driveRef.id);
 
     // Create notifications for each tagged college
     if (colleges && colleges.length > 0) {
@@ -138,9 +165,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       driveId: driveRef.id,
     });
   } catch (error) {
-    console.error('Error creating interview drive:', error);
+    console.error('❌ Error creating interview drive:', error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('❌ Error details:', JSON.stringify(error, null, 2));
     return NextResponse.json(
-      { error: 'Failed to create interview drive' },
+      { 
+        error: 'Failed to create interview drive',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
@@ -180,10 +212,58 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           collegeNames = await Promise.all(collegePromises);
         }
         
+        // Calculate real-time stats from interview sessions
+        const sessionsSnapshot = await db
+          .collection('interview_sessions')
+          .where('driveId', '==', doc.id)
+          .get();
+        
+        const completedSessions = sessionsSnapshot.docs.filter(
+          sessionDoc => sessionDoc.data().status === 'completed'
+        );
+        
+        // Calculate average score from evaluation reports
+        let totalScore = 0;
+        let scoredCount = 0;
+        
+        for (const sessionDoc of completedSessions) {
+          const sessionData = sessionDoc.data();
+          if (sessionData.evaluationId) {
+            try {
+              const evalDoc = await db
+                .collection('evaluation_reports')
+                .doc(sessionData.evaluationId)
+                .get();
+              
+              if (evalDoc.exists) {
+                const evalData = evalDoc.data();
+                const overallScore = evalData?.overallScore || evalData?.scores?.overall || 0;
+                if (overallScore > 0) {
+                  totalScore += overallScore;
+                  scoredCount++;
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching evaluation for session ${sessionDoc.id}:`, error);
+            }
+          }
+        }
+        
+        const averageScore = scoredCount > 0 ? Math.round(totalScore / scoredCount) : 0;
+        
+        // Count tagged students
+        const taggedStudents = driveData.taggedStudents?.length || 0;
+        
         return {
           id: doc.id,
           ...driveData,
           collegeNames,
+          // Override stats with real-time calculated values
+          stats: {
+            totalStudents: taggedStudents,
+            completedInterviews: completedSessions.length,
+            averageScore: averageScore,
+          },
         };
       })
     );

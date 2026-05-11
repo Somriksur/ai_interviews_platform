@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { StudentNavigation } from "@/components/student/Navigation";
+import { VoiceAnalysisCard } from "@/components/reports/VoiceAnalysisCard";
+import FixScoresButton from "@/components/FixScoresButton";
+import InterviewIssueHandler from "@/components/InterviewIssueHandler";
 
 interface Report {
   id: string;
@@ -35,6 +38,24 @@ interface Report {
   nlpVersion: string;
   processingTime: number;
   confidenceScore: number;
+  technicalCorrectness?: number;
+  conceptualUnderstanding?: number;
+  practicalApplication?: number;
+  voiceMetrics?: {
+    speechClarity: number;
+    confidence: number;
+    hesitation: number;
+    emotionalStability: number;
+    overallVoiceScore: number;
+    insights?: {
+      speakingPattern: 'fast' | 'moderate' | 'slow';
+      confidenceLevel: 'high' | 'medium' | 'low';
+      stressIndicators: string[];
+      strengths: string[];
+      improvements: string[];
+    };
+    explanation?: string;
+  };
   drive: {
     id: string;
     name: string;
@@ -141,17 +162,17 @@ export default function StudentReportsPage({
 
   if (loading) {
     return (
-      <>
+      <div className="min-h-screen bg-background">
         <StudentNavigation studentId={studentId} />
         <div className="min-h-screen flex items-center justify-center">
           <div className="animate-spin text-4xl">⏳</div>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-background">
       <StudentNavigation studentId={studentId} />
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
@@ -204,6 +225,14 @@ export default function StudentReportsPage({
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* Interview Issue Handler - diagnoses and fixes issues */}
+                  <InterviewIssueHandler 
+                    evaluationId={report.id}
+                    currentScore={report.overallScore}
+                    driveId={report.drive?.id}
+                    studentId={studentId}
+                  />
+
                   {/* Core Scores */}
                   <div>
                     <h4 className="font-semibold mb-3">📈 Performance Scores</h4>
@@ -350,6 +379,19 @@ export default function StudentReportsPage({
                     </div>
                   )}
 
+                  {/* Voice Analysis - TOP 1% MULTI-MODAL FEATURE */}
+                  {report.voiceMetrics && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <h4 className="font-semibold">🎤 Voice Analysis</h4>
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                          TOP 1% AI
+                        </Badge>
+                      </div>
+                      <VoiceAnalysisCard voiceMetrics={report.voiceMetrics} />
+                    </div>
+                  )}
+
                   {/* Strengths & Improvements */}
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
@@ -487,6 +529,6 @@ export default function StudentReportsPage({
           </DialogContent>
         </Dialog>
       </div>
-    </>
+    </div>
   );
 }

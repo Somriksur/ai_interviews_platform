@@ -65,14 +65,56 @@ export default function VoiceInterview() {
                     setStatus("error");
                 }
 
-                // Handle transcript messages
-                if (message?.type === "transcript" && message?.transcriptType === "final" && message.transcript) {
-                    const newMessage: Message = {
-                        role: message.role === "assistant" ? "assistant" : "user",
-                        content: message.transcript,
-                        timestamp: new Date()
-                    };
-                    setMessages(prev => [...prev, newMessage]);
+                // Handle transcript messages with enhanced validation
+                if (message?.type === "transcript" && message.transcript) {
+                    // Accept both "final" and "partial" transcripts, but prefer final
+                    const isFinal = message.transcriptType === "final";
+                    const isPartial = message.transcriptType === "partial";
+                    
+                    // Only process if we have meaningful content
+                    if (message.transcript.trim().length > 2) {
+                        const newMessage: Message = {
+                            role: message.role === "assistant" ? "assistant" : "user",
+                            content: message.transcript.trim(),
+                            timestamp: new Date()
+                        };
+                        
+                        console.log(`📝 Capturing ${isFinal ? 'FINAL' : 'PARTIAL'} transcript:`, {
+                            role: newMessage.role,
+                            content: newMessage.content.substring(0, 100) + '...',
+                            length: newMessage.content.length
+                        });
+                        
+                        // For final transcripts, always add
+                        // For partial transcripts, only add if it's significantly different from the last message
+                        if (isFinal) {
+                            setMessages(prev => {
+                                // Remove any partial transcript from the same role that might be similar
+                                const filtered = prev.filter((msg, index) => {
+                                    if (index === prev.length - 1 && msg.role === newMessage.role) {
+                                        // If the last message is from the same role and very similar, replace it
+                                        const similarity = calculateSimilarity(msg.content, newMessage.content);
+                                        return similarity < 0.8; // Keep if less than 80% similar
+                                    }
+                                    return true;
+                                });
+                                return [...filtered, newMessage];
+                            });
+                        } else if (isPartial) {
+                            // For partial transcripts, update the last message if it's from the same role
+                            setMessages(prev => {
+                                if (prev.length > 0 && prev[prev.length - 1].role === newMessage.role) {
+                                    // Update the last message with the partial transcript
+                                    const updated = [...prev];
+                                    updated[updated.length - 1] = newMessage;
+                                    return updated;
+                                } else {
+                                    // Add as new message if different role
+                                    return [...prev, newMessage];
+                                }
+                            });
+                        }
+                    }
                 }
             });
 
@@ -140,8 +182,45 @@ export default function VoiceInterview() {
     };
 
     const endInterview = async () => {
+        console.log('🔚 Ending interview...');
+        
+        // Validate that we have captured responses before ending
+        const userMessages = messages.filter(msg => msg.role === 'user');
+        
+        if (userMessages.length === 0) {
+            console.warn('⚠️ No user responses captured!');
+            const shouldContinue = confirm(
+                'No responses were captured during this interview. This might be due to microphone issues. ' +
+                'Do you want to end the interview anyway? (This will result in a low score)'
+            );
+            
+            if (!shouldContinue) {
+                return; // Don't end the interview
+            }
+        } else {
+            console.log('✅ Interview validation passed:', {
+                totalMessages: messages.length,
+                userResponses: userMessages.length,
+                avgResponseLength: userMessages.reduce((sum, msg) => sum + msg.content.length, 0) / userMessages.length
+            });
+        }
+        
         await vapiRef.current?.stop?.();
         setStatus("ended");
+    };
+
+    // Helper function to calculate text similarity
+    const calculateSimilarity = (text1: string, text2: string): number => {
+        const words1 = text1.toLowerCase().split(/\s+/);
+        const words2 = text2.toLowerCase().split(/\s+/);
+        
+        const set1 = new Set(words1);
+        const set2 = new Set(words2);
+        
+        const intersection = new Set([...set1].filter(x => set2.has(x)));
+        const union = new Set([...set1, ...set2]);
+        
+        return intersection.size / union.size;
     };
 
     useEffect(() => {

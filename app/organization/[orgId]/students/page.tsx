@@ -13,6 +13,7 @@ interface Student {
   cgpa: number;
   collegeId: string;
   collegeName: string;
+  resumeScore?: number;
 }
 
 export default function OrganizationStudentsPage({
@@ -140,6 +141,7 @@ export default function OrganizationStudentsPage({
                     <th className="text-left p-4 font-semibold">Branch</th>
                     <th className="text-left p-4 font-semibold">Year</th>
                     <th className="text-left p-4 font-semibold">CGPA</th>
+                    <th className="text-left p-4 font-semibold">Resume Score</th>
                     <th className="text-left p-4 font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -163,6 +165,25 @@ export default function OrganizationStudentsPage({
                       <td className="p-4">{student.year}</td>
                       <td className="p-4">
                         <span className="font-semibold">{student.cgpa}</span>
+                      </td>
+                      <td className="p-4">
+                        {student.resumeScore !== undefined && student.resumeScore !== null ? (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                student.resumeScore >= 75
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                  : student.resumeScore >= 50
+                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                              }`}
+                            >
+                              {student.resumeScore}%
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No resume</span>
+                        )}
                       </td>
                       <td className="p-4">
                         <Link

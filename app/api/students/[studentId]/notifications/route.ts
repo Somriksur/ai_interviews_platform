@@ -142,7 +142,38 @@ export async function GET(
     query = query.limit(limit);
 
     // Get notifications
-    const notificationsSnapshot = await query.get();
+    let notificationsSnapshot;
+    try {
+      notificationsSnapshot = await query.get();
+    } catch (error: any) {
+      const details = String(error?.details || '');
+      const code = error?.code;
+
+      if (code === 9 && details.includes('query requires an index')) {
+        console.warn('⚠️ Notifications index is still building, returning empty state for now');
+        return NextResponse.json({
+          notifications: [],
+          drives: [],
+          organizations: [],
+          summary: {
+            total: 0,
+            unread: 0,
+            selected: 0,
+            rejected: 0,
+          },
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            hasMore: false,
+          },
+          indexBuilding: true,
+        });
+      }
+
+      throw error;
+    }
 
     console.log('📊 Found notifications:', notificationsSnapshot.size);
 

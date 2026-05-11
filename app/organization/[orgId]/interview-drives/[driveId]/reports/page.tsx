@@ -3,6 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { VoiceAnalysisCard } from "@/components/reports/VoiceAnalysisCard";
 
 interface Report {
   id: string;
@@ -15,7 +19,30 @@ interface Report {
     communication?: number;
   };
   overallScore?: number;
+  technicalScore?: number;
+  communicationScore?: number;
+  problemSolvingScore?: number;
   selectionStatus?: "selected" | "rejected" | null;
+  recommendation?: string;
+  placementCategory?: string;
+  strengths?: string[];
+  improvements?: string[];
+  detailedAnalysis?: string;
+  voiceMetrics?: {
+    speechClarity: number;
+    confidence: number;
+    hesitation: number;
+    emotionalStability: number;
+    overallVoiceScore: number;
+    insights?: {
+      speakingPattern: 'fast' | 'moderate' | 'slow';
+      confidenceLevel: 'high' | 'medium' | 'low';
+      stressIndicators: string[];
+      strengths: string[];
+      improvements: string[];
+    };
+    explanation?: string;
+  };
   student?: {
     id: string;
     name: string;
@@ -48,6 +75,8 @@ export default function InterviewDriveReportsPage({
   const [drive, setDrive] = useState<Drive | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
 
   useEffect(() => {
     const loadParams = async () => {
@@ -67,11 +96,13 @@ export default function InterviewDriveReportsPage({
   const fetchReports = async () => {
     try {
       setLoading(true);
+      // Single API call - already optimized, no N+1 query
       const response = await fetch(
         `/api/organization/${orgId}/interview-drives/${driveId}/reports`
       );
       if (response.ok) {
         const data = await response.json();
+        // API returns reports with student/college/drive data already populated
         setReports(data.reports || []);
         setDrive(data.drive);
       }
@@ -94,9 +125,29 @@ export default function InterviewDriveReportsPage({
 
   const getScore = (report: Report) => {
     if (report.reportType === "evaluation") {
-      return report.scores?.overall || 0;
+      return report.scores?.overall || report.overallScore || 0;
     }
     return report.overallScore || 0;
+  };
+
+  const getRecommendationBadge = (recommendation: string) => {
+    const styles = {
+      'highly-recommended': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      'recommended': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      'consider': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      'not-recommended': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    };
+    return styles[recommendation as keyof typeof styles] || styles['not-recommended'];
+  };
+
+  const getRecommendationLabel = (recommendation: string) => {
+    const labels = {
+      'highly-recommended': 'Highly Recommended',
+      'recommended': 'Recommended',
+      'consider': 'Consider',
+      'not-recommended': 'Not Recommended',
+    };
+    return labels[recommendation as keyof typeof labels] || 'Not Recommended';
   };
 
   const averageScore =
@@ -288,6 +339,8 @@ export default function InterviewDriveReportsPage({
                     <th className="text-left p-4 font-semibold">College</th>
                     <th className="text-left p-4 font-semibold">Type</th>
                     <th className="text-left p-4 font-semibold">Score</th>
+                    <th className="text-left p-4 font-semibold">Recommendation</th>
+                    <th className="text-left p-4 font-semibold">Voice</th>
                     <th className="text-left p-4 font-semibold">Generated</th>
                     <th className="text-left p-4 font-semibold">Selection</th>
                     <th className="text-left p-4 font-semibold">Actions</th>
@@ -330,6 +383,25 @@ export default function InterviewDriveReportsPage({
                           {getScore(report).toFixed(1)}%
                         </span>
                       </td>
+                      <td className="p-4">
+                        {report.recommendation && (
+                          <Badge className={getRecommendationBadge(report.recommendation)}>
+                            {getRecommendationLabel(report.recommendation)}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {report.voiceMetrics ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-lg">🎤</span>
+                            <span className="text-sm font-medium">
+                              {report.voiceMetrics.overallVoiceScore}/100
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">N/A</span>
+                        )}
+                      </td>
                       <td className="p-4 text-sm text-gray-600 dark:text-gray-400">
                         {new Date(report.generatedAt).toLocaleDateString()}
                       </td>
@@ -362,10 +434,19 @@ export default function InterviewDriveReportsPage({
                       <td className="p-4">
                         <Link
                           href={`/student/${report.studentId}/profile`}
-                          className="text-blue-600 hover:text-blue-700 text-sm"
+                          className="text-blue-600 hover:text-blue-700 text-sm mr-3"
                         >
                           View Profile →
                         </Link>
+                        <button
+                          onClick={() => {
+                            setSelectedReport(report);
+                            setShowDetailDialog(true);
+                          }}
+                          className="text-purple-600 hover:text-purple-700 text-sm"
+                        >
+                          Details
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -389,6 +470,120 @@ export default function InterviewDriveReportsPage({
             </Button>
           </div>
         )}
+
+        {/* Detailed Report Dialog */}
+        <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Detailed Report Analysis</DialogTitle>
+              <DialogDescription>
+                {selectedReport?.student?.name} - {selectedReport?.college?.name}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedReport && (
+              <div className="space-y-6 mt-4">
+                {/* Scores Grid */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Performance Scores</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {selectedReport.technicalScore !== undefined && (
+                        <div className="text-center p-3 bg-muted rounded-lg">
+                          <div className="text-2xl font-bold">{selectedReport.technicalScore}/100</div>
+                          <div className="text-sm text-muted-foreground">Technical</div>
+                        </div>
+                      )}
+                      {selectedReport.communicationScore !== undefined && (
+                        <div className="text-center p-3 bg-muted rounded-lg">
+                          <div className="text-2xl font-bold">{selectedReport.communicationScore}/100</div>
+                          <div className="text-sm text-muted-foreground">Communication</div>
+                        </div>
+                      )}
+                      {selectedReport.problemSolvingScore !== undefined && (
+                        <div className="text-center p-3 bg-muted rounded-lg">
+                          <div className="text-2xl font-bold">{selectedReport.problemSolvingScore}/100</div>
+                          <div className="text-sm text-muted-foreground">Problem Solving</div>
+                        </div>
+                      )}
+                      <div className="text-center p-3 bg-primary/10 rounded-lg">
+                        <div className="text-2xl font-bold">{getScore(selectedReport).toFixed(1)}/100</div>
+                        <div className="text-sm text-muted-foreground">Overall</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Voice Analysis - TOP 1% FEATURE */}
+                {selectedReport.voiceMetrics && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <h4 className="font-semibold text-lg">Voice Analysis</h4>
+                      <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                        TOP 1% AI
+                      </Badge>
+                    </div>
+                    <VoiceAnalysisCard voiceMetrics={selectedReport.voiceMetrics} />
+                  </div>
+                )}
+
+                {/* Strengths & Improvements */}
+                {(selectedReport.strengths || selectedReport.improvements) && (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {selectedReport.strengths && selectedReport.strengths.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg text-green-600">Strengths</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {selectedReport.strengths.map((strength, idx) => (
+                              <li key={idx} className="text-sm flex items-start gap-2">
+                                <span className="text-green-500 mt-1">✓</span>
+                                <span>{strength}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
+                    {selectedReport.improvements && selectedReport.improvements.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg text-blue-600">Areas for Improvement</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {selectedReport.improvements.map((improvement, idx) => (
+                              <li key={idx} className="text-sm flex items-start gap-2">
+                                <span className="text-blue-500 mt-1">→</span>
+                                <span>{improvement}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {/* Detailed Analysis */}
+                {selectedReport.detailedAnalysis && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Detailed Analysis</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm whitespace-pre-wrap">{selectedReport.detailedAnalysis}</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

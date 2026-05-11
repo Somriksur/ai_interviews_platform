@@ -10,9 +10,9 @@ export async function GET(
 ) {
     try {
         const user = await getCurrentUser();
-        if (!user || user.role !== "candidate") {
+        if (!user || (user.role !== "candidate" && user.role !== "student")) {
             return NextResponse.json(
-                { success: false, error: "Unauthorized" },
+                { success: false, error: "Unauthorized - must be a student or candidate" },
                 { status: 401 }
             );
         }

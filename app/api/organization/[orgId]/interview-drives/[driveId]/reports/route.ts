@@ -104,8 +104,25 @@ export async function GET(
           }
         }
 
-        const generatedAt =
-          reportData.createdAt?.toDate?.() || new Date(reportData.createdAt);
+        // Handle date with proper validation
+        let generatedAt;
+        try {
+          if (reportData.createdAt?.toDate) {
+            generatedAt = reportData.createdAt.toDate();
+          } else if (reportData.createdAt) {
+            const parsedDate = new Date(reportData.createdAt);
+            generatedAt = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+          } else {
+            generatedAt = new Date();
+          }
+          
+          // Validate the final date
+          if (!generatedAt || isNaN(generatedAt.getTime())) {
+            generatedAt = new Date();
+          }
+        } catch (error) {
+          generatedAt = new Date();
+        }
 
         // Get selection status for this student
         const selectionStatus = selectionsMap.get(reportData.studentId) || null;

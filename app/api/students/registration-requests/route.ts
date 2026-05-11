@@ -15,6 +15,8 @@ const createRegistrationRequestSchema = z
     rollNumber: z.string().max(64).optional(),
     branch: z.string().max(120).optional(),
     year: z.number().int().min(1).max(8).optional(),
+    resumeUrl: z.string().url().optional(),
+    resumeText: z.string().optional(),
   })
   .strict();
 
@@ -37,7 +39,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const { studentName, email, collegeName, rollNumber, branch, year } = parseResult.data;
+    const { studentName, email, collegeName, rollNumber, branch, year, resumeUrl, resumeText } = parseResult.data;
     if (authResult.context.user.email.toLowerCase() !== String(email || "").toLowerCase()) {
       return NextResponse.json({ error: "Forbidden: email must match authenticated user" }, { status: 403 });
     }
@@ -110,6 +112,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Parse resume if provided (simplified for faster registration)
+    let resumeData = {};
+    if (resumeUrl && resumeText) {
+      try {
+        // Quick skill extraction only during registration
+        const skillKeywords = ['javascript', 'python', 'java', 'react', 'node', 'typescript', 'sql', 'aws', 'docker', 'kubernetes', 'git', 'html', 'css', 'angular', 'vue', 'mongodb', 'postgresql', 'redis', 'graphql', 'rest', 'api', 'c++', 'c#', 'go', 'rust', 'swift', 'kotlin', 'flutter', 'react native', 'django', 'flask', 'spring', 'express', 'fastapi'];
+        const textLower = resumeText.toLowerCase();
+        const foundSkills = skillKeywords.filter(skill => textLower.includes(skill));
+        
+        resumeData = {
+          resumeUrl,
+          extractedSkills: foundSkills.slice(0, 10), // Max 10 skills
+          resumeParsedAt: new Date(),
+        };
+      } catch (error) {
+        console.error('Error parsing resume:', error);
+        // Continue without resume data if parsing fails
+      }
+    }
+
     // Create registration request
     const registrationRequest = {
       studentName: studentName.trim(),
@@ -121,6 +143,7 @@ export async function POST(request: NextRequest) {
       rollNumber: rollNumber?.trim(),
       branch: branch?.trim(),
       year,
+      ...resumeData,
       status: 'pending',
       submittedAt: new Date(),
     };

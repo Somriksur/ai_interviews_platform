@@ -15,6 +15,13 @@ interface Student {
   collegeId: string;
   collegeName?: string; // Original casing
   normalizedCollegeName?: string;
+  resumeUrl?: string;
+  extractedSkills?: string[];
+  resumeParsedAt?: any;
+  resumeScore?: number;
+  education?: Array<{ degree: string; institution: string; year?: string }>;
+  projects?: Array<{ name: string; description: string }>;
+  experienceLevel?: string;
 }
 
 interface Interview {
@@ -76,6 +83,76 @@ export default function StudentProfilePage({ params }: { params: Promise<{ stude
   }, [studentId]);
 
   const [assignedDrives, setAssignedDrives] = useState<any[]>([]);
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<string>("");
+
+  const handleResumeUpload = async () => {
+    if (!resumeFile) return;
+
+    setUploadingResume(true);
+    setUploadProgress(0);
+    setUploadStatus("Reading file...");
+    
+    try {
+      // Read file as text for parsing
+      setUploadProgress(20);
+      const text = await resumeFile.text();
+      
+      if (!text || text.trim().length < 100) {
+        throw new Error('Resume file appears to be empty or too short. Please upload a valid resume.');
+      }
+      
+      setUploadProgress(40);
+      setUploadStatus("Processing resume with NLP...");
+
+      // Send directly to API without Firebase Storage
+      const response = await fetch(`/api/students/${studentId}/resume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resumeText: text,
+          fileName: resumeFile.name,
+          fileSize: resumeFile.size,
+          fileType: resumeFile.type
+        }),
+      });
+
+      setUploadProgress(80);
+
+      if (response.ok) {
+        const result = await response.json();
+        setUploadProgress(100);
+        setUploadStatus("Success!");
+        
+        setTimeout(() => {
+          alert(`✅ Resume processed successfully!\n\n📊 Resume Score: ${result.resumeScore}/100\n🎯 Domain: ${result.domain}\n💼 Experience: ${result.experienceLevel}\n🔧 Extracted ${result.extractedSkills.length} skills automatically\n📁 Found ${result.projectsCount} projects\n\nYour profile has been updated with enhanced NLP analysis!`);
+          fetchStudentData(); // Refresh data
+          setResumeFile(null);
+          setUploadProgress(0);
+          setUploadStatus("");
+        }, 500);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to process resume');
+      }
+    } catch (error) {
+      console.error("Error uploading resume:", error);
+      
+      let errorMessage = 'Error processing resume';
+      
+      if (error instanceof Error) {
+        errorMessage = `❌ Upload Error\n\n${error.message}`;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setUploadingResume(false);
+      setUploadProgress(0);
+      setUploadStatus("");
+    }
+  };
 
   const fetchStudentData = async () => {
     try {
@@ -238,8 +315,103 @@ export default function StudentProfilePage({ params }: { params: Promise<{ stude
           </div>
         </div>
 
+        {/* Resume Upload Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">📄 Resume</h2>
+          {student.resumeParsedAt ? (
+            <div className="space-y-3">
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <p className="font-medium text-green-900 dark:text-green-100">✅ Resume Uploaded</p>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Parsed: {formatFirestoreDate(student.resumeParsedAt)}
+                </p>
+                {student.extractedSkills && student.extractedSkills.length > 0 && (
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    Extracted {student.extractedSkills.length} skills automatically
+                  </p>
+                )}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="mb-2">Upload a new resume to update your profile:</p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Upload your resume to automatically extract skills and improve your profile
+              </p>
+            </div>
+          )}
+          
+          <div className="mt-4">
+            <div className="flex items-center gap-3">
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+                disabled={uploadingResume}
+                className="flex-1 text-sm text-gray-600 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <button
+                onClick={handleResumeUpload}
+                disabled={!resumeFile || uploadingResume}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {uploadingResume ? "Uploading..." : "Upload"}
+              </button>
+            </div>
+            {uploadingResume && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{uploadStatus}</span>
+                  <span className="text-sm font-medium text-blue-600">{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              Supported formats: PDF, DOC, DOCX, TXT (Max 5MB)
+            </p>
+          </div>
+        </div>
+
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Resume Score</p>
+                <p className="text-3xl font-bold mt-2">
+                  {student.resumeScore !== undefined && student.resumeScore !== null
+                    ? `${student.resumeScore}%`
+                    : 'N/A'}
+                </p>
+              </div>
+              <div className="text-4xl">📄</div>
+            </div>
+            {student.resumeScore !== undefined && student.resumeScore !== null && (
+              <div className="mt-3">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${
+                      student.resumeScore >= 75
+                        ? 'bg-green-500'
+                        : student.resumeScore >= 50
+                        ? 'bg-yellow-500'
+                        : 'bg-red-500'
+                    }`}
+                    style={{ width: `${student.resumeScore}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -403,7 +575,24 @@ export default function StudentProfilePage({ params }: { params: Promise<{ stude
           <h2 className="text-xl font-semibold mb-4">Placement Reports</h2>
           {reports.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-600 dark:text-gray-400">No placement reports yet</p>
+              {completedInterviews.length > 0 ? (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <span className="text-3xl">⏳</span>
+                    <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+                      Reports Being Processed
+                    </h3>
+                  </div>
+                  <p className="text-blue-800 dark:text-blue-200 mb-2">
+                    Your interview has been completed successfully! The organization is currently processing your evaluation reports.
+                  </p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Reports will appear here once the organization generates them. This usually happens within a few days after the interview drive closes.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-gray-600 dark:text-gray-400">No placement reports yet</p>
+              )}
             </div>
           ) : (
             <div className="space-y-4">

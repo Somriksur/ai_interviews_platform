@@ -30,6 +30,36 @@ export interface SpaceHealthStatus {
   message: string;
   spaceUrl: string;
   lastChecked: string;
+  details?: string;
+  httpStatus?: number;
+}
+
+function getSpaceEndpoint() {
+  const rawEndpoint = process.env.HUGGINGFACE_ENDPOINT_URL;
+
+  if (!rawEndpoint) {
+    throw new Error('HUGGINGFACE_ENDPOINT_URL not configured in environment variables');
+  }
+
+  return rawEndpoint.replace(/\/+$/, '');
+}
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  timeoutMs: number = 60000 // Increased default to 60 seconds
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
@@ -38,11 +68,7 @@ export interface SpaceHealthStatus {
 export async function generateQuestionsWithSpace(
   request: QuestionGenerationRequest
 ): Promise<QuestionGenerationResponse> {
-  const SPACE_ENDPOINT = process.env.HUGGINGFACE_ENDPOINT_URL;
-
-  if (!SPACE_ENDPOINT) {
-    throw new Error('HUGGINGFACE_ENDPOINT_URL not configured in environment variables');
-  }
+  const SPACE_ENDPOINT = getSpaceEndpoint();
 
   const { role, level, type, amount } = request;
 
@@ -55,21 +81,30 @@ export async function generateQuestionsWithSpace(
 
   try {
     // Call your Space's API using Gradio 4.x format
-    const callResponse = await fetch(`${SPACE_ENDPOINT}/call/predict`, {
+    console.log('🔗 Calling Space API:', `${SPACE_ENDPOINT}/gradio_api/call/generate_interface`);
+    
+    const callResponse = await fetchWithTimeout(`${SPACE_ENDPOINT}/gradio_api/call/generate_interface`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify({
         data: [prompt, Math.min(300, amount * 50), 0.6] // prompt, max_tokens, temperature
       })
-    });
+    }, 30000); // 30 second timeout for initial call
 
+    console.log('📡 Call response status:', callResponse.status);
+    
     if (!callResponse.ok) {
-      throw new Error(`Space API call failed with status ${callResponse.status}`);
+      const errorText = await callResponse.text();
+      console.error('❌ Call failed:', errorText);
+      throw new Error(`Space API call failed with status ${callResponse.status}: ${errorText}`);
     }
 
     const callData = await callResponse.json();
+    console.log('📦 Call data:', JSON.stringify(callData).substring(0, 200));
+    
     const eventId = callData.event_id;
 
     if (!eventId) {
@@ -78,10 +113,15 @@ export async function generateQuestionsWithSpace(
 
     console.log('✅ Got event_id:', eventId);
 
-    // Wait for the result using SSE
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s for generation
+    // Wait for the result using SSE - increase wait time for model loading
+    console.log('⏳ Waiting for generation...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
-    const resultResponse = await fetch(`${SPACE_ENDPOINT}/call/predict/${eventId}`);
+    const resultResponse = await fetchWithTimeout(
+      `${SPACE_ENDPOINT}/gradio_api/call/generate_interface/${eventId}`,
+      { method: 'GET' },
+      90000 // Increased to 90 seconds for model loading
+    );
     
     if (!resultResponse.ok) {
       throw new Error(`Failed to get result: ${resultResponse.status}`);
@@ -90,7 +130,7 @@ export async function generateQuestionsWithSpace(
     const resultText = await resultResponse.text();
     console.log('📝 Raw response:', resultText.substring(0, 500));
 
-    // Parse SSE response
+    // Parse SSE response - Gradio returns "event: complete\ndata: [result]"
     let generatedText = '';
     const lines = resultText.split('\n');
     
@@ -100,9 +140,11 @@ export async function generateQuestionsWithSpace(
           const data = JSON.parse(line.substring(6));
           if (data && Array.isArray(data) && data.length > 0 && typeof data[0] === 'string') {
             generatedText = data[0];
+            console.log('✅ Extracted generated text:', generatedText.substring(0, 200));
             break;
           }
         } catch (e) {
+          console.log('⚠️ Failed to parse line:', line);
           // Continue to next line
         }
       }
@@ -142,9 +184,11 @@ export async function generateQuestionsWithSpace(
  * Check if your HuggingFace Space is healthy and responding
  */
 export async function checkSpaceHealth(): Promise<SpaceHealthStatus> {
-  const SPACE_ENDPOINT = process.env.HUGGINGFACE_ENDPOINT_URL;
+  let SPACE_ENDPOINT = '';
 
-  if (!SPACE_ENDPOINT) {
+  try {
+    SPACE_ENDPOINT = getSpaceEndpoint();
+  } catch (_error) {
     return {
       status: 'error',
       message: 'HUGGINGFACE_ENDPOINT_URL not configured',
@@ -154,51 +198,59 @@ export async function checkSpaceHealth(): Promise<SpaceHealthStatus> {
   }
 
   try {
-    // Try to access the Space
-    const healthResponse = await fetch(SPACE_ENDPOINT, {
-      method: 'GET',
+    const testResponse = await fetchWithTimeout(`${SPACE_ENDPOINT}/gradio_api/call/generate_interface`, {
+      method: 'POST',
       headers: {
-        'Accept': 'text/html',
-        'User-Agent': 'HireFlow-HealthCheck/1.0'
-      }
-    });
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        data: ['Health check prompt', 32, 0.2]
+      })
+    }, 20000);
 
-    if (!healthResponse.ok) {
+    let testData: { event_id?: string; error?: string } | null = null;
+    try {
+      testData = await testResponse.json();
+    } catch (_parseError) {
+      testData = null;
+    }
+
+    if (testResponse.ok && testData?.event_id) {
       return {
-        status: 'loading',
-        message: 'Space is not accessible. It might be sleeping or loading.',
+        status: 'healthy',
+        message: 'Space API is healthy and responding',
         spaceUrl: SPACE_ENDPOINT,
         lastChecked: new Date().toISOString()
       };
     }
 
-    // Try a test API call
-    const testResponse = await fetch(`${SPACE_ENDPOINT}/gradio_api/call/generate_interface`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        data: ['Test health check', 100, 0.7]
-      })
-    });
-
-    const testData = await testResponse.json();
+    if (testResponse.status === 404) {
+      return {
+        status: 'loading',
+        message: 'Space is reachable, but the Gradio endpoint was not found.',
+        spaceUrl: SPACE_ENDPOINT,
+        lastChecked: new Date().toISOString(),
+        httpStatus: testResponse.status,
+        details: 'Check that the interface endpoint name matches `generate_interface`.'
+      };
+    }
 
     return {
-      status: testResponse.ok && testData.event_id ? 'healthy' : 'loading',
-      message: testResponse.ok && testData.event_id 
-        ? 'Space is healthy and responding' 
-        : 'Space is accessible but API might be initializing',
+      status: 'loading',
+      message: 'Space is reachable, but the API is still warming up or returned an unexpected response.',
       spaceUrl: SPACE_ENDPOINT,
-      lastChecked: new Date().toISOString()
+      lastChecked: new Date().toISOString(),
+      httpStatus: testResponse.status,
+      details: testData?.error || 'No event_id returned from Gradio API.'
     };
   } catch (error) {
     return {
-      status: 'error',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      status: 'loading',
+      message: 'Space API did not respond in time. It may still be waking up.',
       spaceUrl: SPACE_ENDPOINT,
-      lastChecked: new Date().toISOString()
+      lastChecked: new Date().toISOString(),
+      details: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }

@@ -7,7 +7,9 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Upload } from 'lucide-react';
+import { storage } from '@/firebase/client';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 interface College {
   id: string;
@@ -26,7 +28,9 @@ export default function StudentRegistrationPage() {
     year: '',
   });
   const [selectedCollege, setSelectedCollege] = useState<College | null>(null);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -61,6 +65,17 @@ export default function StudentRegistrationPage() {
     if (formData.year && (parseInt(formData.year) < 1 || parseInt(formData.year) > 5)) {
       return 'Year must be between 1 and 5';
     }
+    // Validate resume file if uploaded
+    if (resumeFile) {
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+      if (!allowedTypes.includes(resumeFile.type)) {
+        return 'Resume must be PDF, DOC, DOCX, or TXT format';
+      }
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (resumeFile.size > maxSize) {
+        return 'Resume file size must be less than 5MB';
+      }
+    }
     return null;
   };
 
@@ -75,8 +90,58 @@ export default function StudentRegistrationPage() {
 
     setIsSubmitting(true);
     setError(null);
+    setUploadProgress(0);
 
     try {
+      let resumeUrl = "";
+      let resumeText = "";
+
+      // Process resume if uploaded - REAL FIREBASE STORAGE UPLOAD
+      if (resumeFile) {
+        try {
+          // Read resume text for NLP processing
+          resumeText = await resumeFile.text();
+          
+          // Upload to Firebase Storage
+          const timestamp = Date.now();
+          const sanitizedFileName = resumeFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          const storageRef = ref(storage, `resumes/${timestamp}_${sanitizedFileName}`);
+          
+          const uploadTask = uploadBytesResumable(storageRef, resumeFile);
+          
+          // Monitor upload progress
+          await new Promise<void>((resolve, reject) => {
+            uploadTask.on(
+              'state_changed',
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(Math.round(progress));
+              },
+              (error) => {
+                console.error("Upload error:", error);
+                reject(error);
+              },
+              async () => {
+                try {
+                  resumeUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                  resolve();
+                } catch (err) {
+                  reject(err);
+                }
+              }
+            );
+          });
+          
+          console.log('✅ Resume uploaded successfully:', resumeUrl);
+        } catch (err) {
+          console.error("Error uploading resume:", err);
+          setError("Failed to upload resume file. Please try again.");
+          setIsSubmitting(false);
+          setUploadProgress(0);
+          return;
+        }
+      }
+
       const response = await fetch('/api/students/registration-requests', {
         method: 'POST',
         headers: {
@@ -89,6 +154,7 @@ export default function StudentRegistrationPage() {
           rollNumber: formData.rollNumber.trim() || undefined,
           branch: formData.branch.trim() || undefined,
           year: formData.year ? parseInt(formData.year) : undefined,
+          ...(resumeUrl && { resumeUrl, resumeText }),
         }),
       });
 
@@ -104,13 +170,25 @@ export default function StudentRegistrationPage() {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(0);
     }
   };
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="max-w-2xl w-full p-8">
+      <div className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Full-screen gradient background - Success theme */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#f0fdf4] via-[#dcfce7] to-[#bbf7d0] dark:from-[#1c1c1e] dark:via-[#1e2e23] dark:to-[#1f3a29]" />
+        
+        {/* Animated background elements - Green success colors */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#34c759]/20 dark:bg-[#32d74b]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#30d158]/20 dark:bg-[#30d158]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-2000" />
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-[#34c759]/20 dark:bg-[#32d74b]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-4000" />
+        </div>
+
+        {/* Content */}
+        <Card className="relative z-10 max-w-2xl w-full p-8 backdrop-blur-xl bg-white/80 dark:bg-[#2c2c2e]/80 shadow-2xl border border-[#d2d2d7]/50 dark:border-[#38383a]/50">
           <div className="text-center">
             <div className="flex justify-center mb-4">
               <CheckCircle className="h-16 w-16 text-green-500" />
@@ -157,18 +235,32 @@ export default function StudentRegistrationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen w-full py-12 px-4 relative overflow-hidden">
+      {/* Full-screen gradient background - Warm Light / Comfortable Dark */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#faf9f7] via-[#f5f5f7] to-[#e8e8ed] dark:from-[#1c1c1e] dark:via-[#2c2c2e] dark:to-[#3a3a3c]" />
+      
+      {/* Animated background elements - Apple colors */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#007aff]/20 dark:bg-[#0a84ff]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#34c759]/20 dark:bg-[#32d74b]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-2000" />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-[#af52de]/20 dark:bg-[#bf5af2]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-4000" />
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#007aff] to-[#5856d6] dark:from-[#0a84ff] dark:to-[#5e5ce6] mb-4 shadow-lg">
+            <span className="text-3xl">🎓</span>
+          </div>
+          <h1 className="text-4xl font-semibold mb-2 bg-gradient-to-r from-[#007aff] to-[#5856d6] dark:from-[#0a84ff] dark:to-[#5e5ce6] bg-clip-text text-transparent">
             Student Registration
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-[#86868b] dark:text-[#98989d]">
             Register to access campus placement opportunities
           </p>
         </div>
 
-        <Card className="p-8">
+        <Card className="p-8 backdrop-blur-xl bg-white/80 dark:bg-[#2c2c2e]/80 shadow-2xl border border-[#d2d2d7]/50 dark:border-[#38383a]/50">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <Alert variant="destructive">
@@ -279,6 +371,49 @@ export default function StudentRegistrationPage() {
               />
             </div>
 
+            <div>
+              <label htmlFor="resume" className="block text-sm font-medium text-gray-700 mb-2">
+                Resume Upload (Optional)
+              </label>
+              <div className="space-y-2">
+                <Input
+                  id="resume"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt"
+                  onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+                  disabled={isSubmitting}
+                  className="cursor-pointer"
+                />
+                {resumeFile && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                    <p className="text-sm text-green-800">
+                      ✓ Selected: <strong>{resumeFile.name}</strong>
+                    </p>
+                    <p className="text-xs text-green-600">
+                      {(resumeFile.size / 1024).toFixed(2)} KB
+                    </p>
+                  </div>
+                )}
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Uploading resume...</span>
+                      <span className="font-medium text-blue-600">{uploadProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <p className="text-sm text-gray-500">
+                  Upload your resume to auto-extract skills and improve your profile (PDF, DOC, DOCX, TXT - Max 5MB)
+                </p>
+              </div>
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="font-medium text-blue-900 mb-2">Important Information</h3>
               <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
@@ -318,9 +453,9 @@ export default function StudentRegistrationPage() {
         </Card>
 
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             Already have an account?{' '}
-            <a href="/auth/signin" className="text-blue-600 hover:underline">
+            <a href="/auth/signin" className="text-blue-600 hover:underline dark:text-blue-400">
               Sign in here
             </a>
           </p>

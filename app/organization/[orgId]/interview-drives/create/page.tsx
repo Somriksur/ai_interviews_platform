@@ -184,42 +184,61 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
 
   const handleGenerateQuestions = async () => {
     if (!driveData.role) {
-      alert("Please enter a job role first");
       return;
     }
 
     setIsGenerating(true);
     setQuestionError(null);
 
+    const payload = {
+      role: driveData.role,
+      level: interviewConfig.level,
+      type: interviewConfig.type,
+      amount: interviewConfig.amount,
+    };
+
     try {
-      const response = await fetch('/api/ai/generate-questions', {
+      // Try main AI model with 45-second timeout
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45000);
+      
+      try {
+        const response = await fetch('/api/ai/generate-questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timer);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setGeneratedQuestions(data.questions);
+          setQuestionsGenerated(true);
+          return;
+        }
+      } catch (error) {
+        clearTimeout(timer);
+        // Timeout or network error - fall through to fallback silently
+      }
+
+      // Use fallback questions (no timeout needed - it's fast)
+      const fallbackResponse = await fetch('/api/ai/fallback-generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          role: driveData.role,
-          level: interviewConfig.level,
-          type: interviewConfig.type,
-          amount: interviewConfig.amount,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (fallbackResponse.ok) {
+        const data = await fallbackResponse.json();
         setGeneratedQuestions(data.questions);
         setQuestionsGenerated(true);
-        
-        alert(`✅ Generated ${data.questions.length} questions successfully using role-based approach!`);
       } else {
-        const errorData = await response.json();
-        setQuestionError(errorData.error || 'Failed to generate questions');
-        alert(`❌ ${errorData.error || 'Failed to generate questions'}`);
+        setQuestionError('Failed to generate questions. Please try again.');
       }
     } catch (error) {
-      console.error('Error generating questions:', error);
-      setQuestionError('Network error occurred');
-      alert('❌ Network error occurred');
+      setQuestionError('Failed to generate questions. Please try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -242,48 +261,53 @@ export default function CreateDrivePage({ params }: { params: Promise<{ orgId: s
 
   const handleCreateDrive = async () => {
     if (!questionsGenerated || generatedQuestions.length === 0) {
-      alert("Please generate questions before creating the drive");
       return;
     }
 
     setLoading(true);
     try {
-      // Step 1: Create interview drive with configuration and questions
+      const requestBody = {
+        name: driveData.name,
+        description: driveData.description,
+        role: driveData.role,
+        colleges: driveData.selectedColleges,
+        interviewConfig: {
+          role: driveData.role,
+          level: interviewConfig.level,
+          type: interviewConfig.type,
+          amount: interviewConfig.amount,
+        },
+        questions: generatedQuestions.map((question, index) => ({
+          text: question,
+          order: index + 1,
+          generatedBy: 'ai',
+        })),
+        aiMetadata: {
+          modelUsed: 'somriksur/HireFlow-Qwen-Fresh-Pro',
+          questionsGeneratedAt: new Date().toISOString(),
+        },
+      };
+      
+      console.log('📤 Sending request body:', JSON.stringify(requestBody, null, 2));
+      
       const driveResponse = await fetch(`/api/organization/${orgId}/interview-drives`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...driveData,
-          colleges: driveData.selectedColleges,
-          interviewConfig: {
-            role: driveData.role,
-            level: interviewConfig.level,
-            type: interviewConfig.type,
-            amount: interviewConfig.amount,
-          },
-          questions: generatedQuestions.map((question, index) => ({
-            text: question,
-            order: index + 1,
-            generatedBy: 'ai' as const,
-          })),
-          aiMetadata: {
-            modelUsed: 'somriksur/HireFlow-Qwen-Fast',
-            questionsGeneratedAt: new Date(),
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!driveResponse.ok) {
-        throw new Error("Failed to create drive");
+        const errorData = await driveResponse.json();
+        console.error("❌ Drive creation failed:", errorData);
+        throw new Error(errorData.error || "Failed to create drive");
       }
 
-      await driveResponse.json();
+      const driveResult = await driveResponse.json();
+      console.log("✅ Drive created:", driveResult);
 
-      alert(`✅ Interview drive created successfully! Colleges have been notified and can now assign students.`);
       router.push(`/organization/${orgId}/interview-drives`);
     } catch (error) {
       console.error("Error creating drive:", error);
-      alert("❌ Failed to create interview drive");
     } finally {
       setLoading(false);
     }

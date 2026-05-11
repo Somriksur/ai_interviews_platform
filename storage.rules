@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Resumes folder - Allow authenticated users to upload, anyone to read
+    match /resumes/{resumeId} {
+      // Allow anyone to read resumes (for recruiters/colleges to view)
+      allow read: if true;
+      
+      // Allow authenticated users to upload resumes
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024  // Max 5MB
+                   && request.resource.contentType.matches('application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|text/plain');
+    }
+    
+    // Default: deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

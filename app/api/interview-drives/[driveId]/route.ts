@@ -58,14 +58,23 @@ export async function GET(
         .get();
 
       if (!studentSnapshot.empty) {
-        const studentId = studentSnapshot.docs[0].id;
-        const sessionSnapshot = await db
-          .collection("interview_sessions")
-          .where("driveId", "==", driveId)
-          .where("studentId", "==", studentId)
-          .limit(1)
-          .get();
-        allowed = !sessionSnapshot.empty;
+        const studentData = studentSnapshot.docs[0].data();
+        const studentCollegeId = studentData.collegeId;
+        
+        // Allow if student's college is in the drive's colleges list
+        if (Array.isArray(driveData?.colleges) && driveData.colleges.includes(studentCollegeId)) {
+          allowed = true;
+        } else {
+          // Also check if student has an interview session
+          const studentId = studentSnapshot.docs[0].id;
+          const sessionSnapshot = await db
+            .collection("interview_sessions")
+            .where("driveId", "==", driveId)
+            .where("studentId", "==", studentId)
+            .limit(1)
+            .get();
+          allowed = !sessionSnapshot.empty;
+        }
       }
     }
 

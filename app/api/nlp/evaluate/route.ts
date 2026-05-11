@@ -150,7 +150,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error in evaluation API:', error);
     return NextResponse.json(
       { 
         error: 'Failed to generate evaluation report',
@@ -256,7 +255,6 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   } catch (error) {
-    console.error('Error fetching evaluation report:', error);
     return NextResponse.json(
       { 
         error: 'Failed to fetch evaluation report',

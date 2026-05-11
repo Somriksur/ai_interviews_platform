@@ -12,10 +12,9 @@ import { requireRole } from '@/lib/security/guards';
 export async function GET(request: NextRequest) {
   try {
     const authResult = await getAuthContext(request);
-    if (!authResult.ok) return authResult.response;
-    const roleError = requireRole(authResult.context, ["organization"]);
-    if (roleError) return roleError;
-
+    // Allow unauthenticated access for student registration
+    // If authenticated, no role restriction needed for college search
+    
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('q');
 

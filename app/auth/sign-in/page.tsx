@@ -9,12 +9,8 @@ import { toast } from "sonner";
 import { auth } from "@/firebase/client";
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
-  fetchSignInMethodsForEmail
+  createUserWithEmailAndPassword
 } from "firebase/auth";
-import { signIn as serverSignIn, signUp as serverSignUp } from "@/lib/actions/auth.action";
 
 function SignInContent() {
   const router = useRouter();
@@ -46,22 +42,36 @@ function SignInContent() {
         );
 
         // Create user in Firestore
-        const result = await serverSignUp({
-          uid: userCredential.user.uid,
-          name: formData.name,
-          email: normalizedEmail,
-          role: formData.role,
+        const registerResponse = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            uid: userCredential.user.uid,
+            name: formData.name,
+            email: normalizedEmail,
+            role: formData.role,
+          }),
         });
+
+        const result = await registerResponse.json();
 
         if (result.success) {
           toast.success("Account created successfully!");
           
           // Get ID token and sign in
           const idToken = await userCredential.user.getIdToken();
-          const signInResult = await serverSignIn({
-            email: normalizedEmail,
-            idToken,
+          const sessionResponse = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: normalizedEmail,
+              idToken,
+              uid: userCredential.user.uid,
+              name: formData.name || userCredential.user.displayName || normalizedEmail.split("@")[0],
+              role: formData.role,
+            }),
           });
+          const signInResult = await sessionResponse.json();
 
           if (signInResult.success) {
             router.push(redirect);
@@ -81,10 +91,18 @@ function SignInContent() {
 
         // Get ID token and create session
         const idToken = await userCredential.user.getIdToken();
-        const result = await serverSignIn({
-          email: normalizedEmail,
-          idToken,
+        const sessionResponse = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            idToken,
+            uid: userCredential.user.uid,
+            name: userCredential.user.displayName || normalizedEmail.split("@")[0],
+            role: "student",
+          }),
         });
+        const result = await sessionResponse.json();
 
         if (result.success) {
           toast.success("Signed in successfully!");
@@ -107,18 +125,7 @@ function SignInContent() {
       } else if (error.code === "auth/wrong-password") {
         toast.error("Incorrect password. Please try again.");
       } else if (error.code === "auth/invalid-credential") {
-        try {
-          const methods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
-          if (methods.length === 0) {
-            toast.error("No account exists for this email. Please sign up first.");
-          } else if (methods.includes("google.com") && !methods.includes("password")) {
-            toast.error("This account uses Google sign-in. Please use the Google button.");
-          } else {
-            toast.error("Invalid email or password. Please check and try again.");
-          }
-        } catch {
-          toast.error("Invalid email or password. Please check and try again.");
-        }
+        toast.error("Invalid email or password. Please check and try again.");
       } else if (error.code === "auth/email-already-in-use") {
         toast.error("This email is already in use. Please sign in instead.");
       } else if (error.code === "auth/invalid-email") {
@@ -133,68 +140,34 @@ function SignInContent() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
-
-    try {
-      const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-
-      // Get ID token
-      const idToken = await userCredential.user.getIdToken();
-
-      // Try to sign in first
-      const signInResult = await serverSignIn({
-        email: userCredential.user.email || "",
-        idToken,
-      });
-
-      if (signInResult.success) {
-        toast.success("Signed in successfully!");
-        
-        // Redirect based on role
-        if (signInResult.user?.role === "student") {
-          router.push("/student");
-        } else {
-          router.push(redirect);
-        }
-      } else {
-        // User doesn't exist, create account
-        const signUpResult = await serverSignUp({
-          uid: userCredential.user.uid,
-          name: userCredential.user.displayName || "",
-          email: userCredential.user.email || "",
-          role: "student", // Default to student for Google sign-in
-        });
-
-        if (signUpResult.success) {
-          toast.success("Account created successfully!");
-          router.push(redirect);
-        } else {
-          toast.error(signUpResult.message);
-        }
-      }
-    } catch (error: any) {
-      console.error("Google sign-in error:", error);
-      toast.error(error.message || "Google sign-in failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">
-            {isSignUp ? "Create Account" : "Welcome Back"}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            {isSignUp
-              ? "Sign up to get started with the campus placement system"
-              : "Sign in to your account"}
-          </p>
-        </div>
+    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
+      {/* Full-screen gradient background - Warm Light / Comfortable Dark */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#faf9f7] via-[#f5f5f7] to-[#e8e8ed] dark:from-[#1c1c1e] dark:via-[#2c2c2e] dark:to-[#3a3a3c]" />
+      
+      {/* Animated background elements - Apple colors */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#007aff]/20 dark:bg-[#0a84ff]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#34c759]/20 dark:bg-[#32d74b]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-2000" />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-[#af52de]/20 dark:bg-[#bf5af2]/20 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-4000" />
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-md px-4">
+        <Card className="w-full p-8 backdrop-blur-xl bg-white/80 dark:bg-[#2c2c2e]/80 shadow-2xl border border-[#d2d2d7]/50 dark:border-[#38383a]/50">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#007aff] to-[#5856d6] dark:from-[#0a84ff] dark:to-[#5e5ce6] mb-4 shadow-lg">
+              <span className="text-3xl">🎓</span>
+            </div>
+            <h1 className="text-3xl font-semibold mb-2 bg-gradient-to-r from-[#007aff] to-[#5856d6] dark:from-[#0a84ff] dark:to-[#5e5ce6] bg-clip-text text-transparent">
+              {isSignUp ? "Create Account" : "Welcome Back"}
+            </h1>
+            <p className="text-[#86868b] dark:text-[#98989d]">
+              {isSignUp
+                ? "Sign up to get started with the campus placement system"
+                : "Sign in to your account"}
+            </p>
+          </div>
 
         <form onSubmit={handleEmailAuth} className="space-y-4">
           {isSignUp && (
@@ -261,48 +234,11 @@ function SignInContent() {
           </Button>
         </form>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">Or continue with</span>
-          </div>
-        </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={handleGoogleSignIn}
-          disabled={loading}
-        >
-          <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-            <path
-              fill="currentColor"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="currentColor"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="currentColor"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-            />
-            <path
-              fill="currentColor"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-            />
-          </svg>
-          Sign in with Google
-        </Button>
-
         <div className="mt-6 text-center text-sm">
           <button
             type="button"
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            className="text-[#007aff] hover:text-[#0066d6] dark:text-[#0a84ff] dark:hover:text-[#0077ed] font-medium"
           >
             {isSignUp
               ? "Already have an account? Sign in"
@@ -314,13 +250,14 @@ function SignInContent() {
           <div className="mt-4 text-center">
             <Link
               href="/student/register"
-              className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+              className="text-sm text-[#86868b] hover:text-[#1d1d1f] dark:text-[#98989d] dark:hover:text-[#f5f5f7]"
             >
               New student? Register with your college →
             </Link>
           </div>
         )}
       </Card>
+      </div>
     </div>
   );
 }

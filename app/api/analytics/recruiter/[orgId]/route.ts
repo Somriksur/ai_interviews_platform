@@ -108,6 +108,7 @@ function getLatestVersionByDrive<T extends { driveId: string; version: number }>
 
 function buildEmptyAnalytics() {
   return {
+    status: "not_finalized",
     summary: {
       totalCandidates: 0,
       totalInterviewSessions: 0,
@@ -302,6 +303,14 @@ export async function GET(
     const readinessRecords = readinessRecordsRaw.filter(
       (record) => record.version === (latestReadinessVersionByDrive.get(record.driveId) ?? 0)
     );
+
+    // If no ranking snapshots found, return not_finalized status
+    if (rankingRecords.length === 0) {
+      return NextResponse.json({
+        ...buildEmptyAnalytics(),
+        message: "No finalized results found. Generate results from interview drive details page.",
+      });
+    }
 
     const readinessByDriveStudent = new Map<string, ReadinessRecord>();
     readinessRecords.forEach((record) => {
@@ -504,6 +513,7 @@ export async function GET(
       .sort((a, b) => b.averageOverallScore - a.averageOverallScore);
 
     return NextResponse.json({
+      status: "finalized",
       summary: {
         totalCandidates,
         totalInterviewSessions: totalSessions,

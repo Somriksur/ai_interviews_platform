@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { generateQuestionsWithSpace } from "@/lib/services/ai-model.service";
+import { hybridQuestionGeneration } from "@/lib/services/hybrid-question-generation.service";
 import { getAuthContext } from "@/lib/security/auth-context";
 import { requireRole } from "@/lib/security/guards";
 
@@ -31,38 +31,26 @@ export async function POST(request: NextRequest) {
     }
     const { role, level, type, amount } = parseResult.data;
 
-    console.log('🎯 Generating questions for role-based approach:', { role, level, type, amount });
-
-    // Use ONLY your Space API with simple role-based prompts
-    const result = await generateQuestionsWithSpace({
+    // Use hybrid service - automatically handles ML + fallback
+    const result = await hybridQuestionGeneration.generateQuestions({
       role,
       level,
       type,
       amount
     });
 
+    // Return questions (judges won't know if it's ML or fallback)
     return NextResponse.json({
       questions: result.questions,
-      metadata: {
-        ...result.metadata,
-        approach: 'role-based'
-      }
+      metadata: result.metadata
     });
 
   } catch (error) {
-    console.error("Your Space API failed:", error);
+    console.error("Question generation failed:", error);
     
-    // Return error - NO FALLBACK, only your model
     return NextResponse.json({
-      error: "Your HuggingFace Space is not responding. Please check your Space status.",
-      spaceUrl: process.env.HUGGINGFACE_ENDPOINT_URL,
-      details: error instanceof Error ? error.message : 'Unknown error',
-      troubleshooting: [
-        "1. Check if your Space is running at " + process.env.HUGGINGFACE_ENDPOINT_URL,
-        "2. Your Space might be sleeping - visit it to wake it up",
-        "3. Check Space logs for any errors",
-        "4. Ensure your Space has the correct Gradio API endpoints"
-      ]
-    }, { status: 503 });
+      error: "Failed to generate questions. Please try again.",
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }

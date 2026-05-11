@@ -20,6 +20,7 @@ interface InterviewDrive {
   organizationId: string;
   taggedColleges?: string[]; // Original casing
   organizationName?: string;
+  status?: string; // active, completed, cancelled
 }
 
 interface StudentProfile {
@@ -257,6 +258,28 @@ export default function StudentInterviewPage({
         </div>
 
         {/* Status Messages */}
+        {drive.status === 'completed' && (
+          <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">
+              📋 Interview Drive Completed
+            </h3>
+            <p className="text-gray-800 dark:text-gray-200">
+              This interview drive has been completed. No new interviews are being accepted.
+            </p>
+          </div>
+        )}
+
+        {drive.status === 'cancelled' && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-2 text-red-900 dark:text-red-100">
+              ❌ Interview Drive Cancelled
+            </h3>
+            <p className="text-red-800 dark:text-red-200">
+              This interview drive has been cancelled and is no longer active.
+            </p>
+          </div>
+        )}
+
         {interviewStatus.selected && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6 mb-6">
             <h3 className="text-lg font-semibold mb-2 text-green-900 dark:text-green-100">
@@ -292,12 +315,12 @@ export default function StudentInterviewPage({
 
         {/* Start Interview Button */}
         <div className="text-center">
-          {!interviewStatus.completed && !interviewStatus.selected && !interviewStatus.rejected ? (
+          {!interviewStatus.completed && !interviewStatus.selected && !interviewStatus.rejected && drive.status !== 'completed' && drive.status !== 'cancelled' ? (
             <>
               <Button
                 onClick={handleStartInterview}
                 size="lg"
-                className="px-8 py-6 text-lg"
+                className="px-8 py-6 text-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl"
               >
                 🎤 Start Interview
               </Button>
@@ -310,19 +333,23 @@ export default function StudentInterviewPage({
               <Button
                 disabled
                 size="lg"
-                className="px-8 py-6 text-lg bg-gray-400 cursor-not-allowed"
+                className="px-8 py-6 text-lg bg-gray-400 cursor-not-allowed opacity-60"
               >
-                {interviewStatus.selected ? '✅ Selected' : 
+                {drive.status === 'completed' ? '📋 Drive Completed' :
+                 drive.status === 'cancelled' ? '❌ Drive Cancelled' :
+                 interviewStatus.selected ? '✅ Selected' : 
                  interviewStatus.rejected ? '📋 Process Complete' : 
                  '✅ Interview Completed'}
               </Button>
               <p className="text-sm text-gray-500 mt-4">
-                {interviewStatus.selected || interviewStatus.rejected
+                {drive.status === 'completed' ? 'This interview drive has been completed' :
+                 drive.status === 'cancelled' ? 'This interview drive has been cancelled' :
+                 interviewStatus.selected || interviewStatus.rejected
                   ? 'The selection process is complete'
                   : 'You have already completed this interview'}
               </p>
               <Link href={`/student/${studentId}/dashboard`} className="block mt-4">
-                <Button variant="outline">
+                <Button variant="outline" className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   ← Back to Dashboard
                 </Button>
               </Link>

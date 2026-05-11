@@ -22,6 +22,13 @@ export default function CandidateInterviewPage({ params }: { params: Promise<{ i
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [vapiClient, setVapiClient] = useState<any>(null);
 
+    // Helper function to extract question text
+    const getQuestionText = (question: any): string => {
+        if (typeof question === 'string') return question;
+        const text = question?.text || question?.question || question || '';
+        return String(text);
+    };
+
     useEffect(() => {
         // Check authentication first
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -156,7 +163,9 @@ export default function CandidateInterviewPage({ params }: { params: Promise<{ i
             // Log questions for debugging
             console.log("Interview questions:");
             interview.questions.forEach((q, i) => {
-                console.log(`   ${i + 1}. ${q.substring(0, 80)}...`);
+                const questionText = getQuestionText(q);
+                const displayText = questionText ? questionText.substring(0, 80) : 'No question text';
+                console.log(`   ${i + 1}. ${displayText}...`);
             });
 
             if (!vapiClient) {
@@ -180,7 +189,7 @@ Tech Stack Focus: ${interview.techstack.join(", ")}
 You will ask exactly ${interview.questions.length} questions, one at a time. After the candidate answers, move to the next question.
 
 Questions to ask:
-${interview.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+${interview.questions.map((q, i) => `${i + 1}. ${getQuestionText(q)}`).join('\n')}
 
 Instructions:
 - Ask questions one by one in order
@@ -194,7 +203,7 @@ Instructions:
                     provider: "11labs",
                     voiceId: "21m00Tcm4TlvDq8ikWAM"
                 },
-                firstMessage: `Hello! I'm your interviewer today. We'll be conducting a ${interview.type} interview for the ${interview.level} ${interview.role} position, focusing on ${interview.techstack.slice(0, 3).join(", ")}. I have ${interview.questions.length} questions for you. Let's begin with the first question: ${interview.questions[0]}`
+                firstMessage: `Hello! I'm your interviewer today. We'll be conducting a ${interview.type} interview for the ${interview.level} ${interview.role} position, focusing on ${interview.techstack.slice(0, 3).join(", ")}. I have ${interview.questions.length} questions for you. Let's begin with the first question: ${getQuestionText(interview.questions[0])}`
             };
             
             // Start Vapi with custom assistant configuration

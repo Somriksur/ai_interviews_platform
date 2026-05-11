@@ -144,11 +144,38 @@ export async function requireStudentAccess(
     }
 
     const orgId = orgSnapshot.docs[0].id;
-    if (studentData?.organizationId !== orgId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    
+    // Check if student's college is associated with any of the org's interview drives
+    const collegeId = studentData?.collegeId;
+    if (collegeId) {
+      const drivesSnapshot = await db
+        .collection("interview_drives")
+        .where("organizationId", "==", orgId)
+        .where("colleges", "array-contains", collegeId)
+        .limit(1)
+        .get();
+      
+      if (!drivesSnapshot.empty) {
+        return null; // Access granted
+      }
+    }
+    
+    // Check if student has any interview sessions with this org
+    const sessionsSnapshot = await db
+      .collection("interview_sessions")
+      .where("studentId", "==", studentId)
+      .limit(1)
+      .get();
+    
+    for (const sessionDoc of sessionsSnapshot.docs) {
+      const sessionData = sessionDoc.data();
+      const driveDoc = await db.collection("interview_drives").doc(sessionData.driveId).get();
+      if (driveDoc.exists && driveDoc.data()?.organizationId === orgId) {
+        return null; // Access granted
+      }
     }
 
-    return null;
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
-        <body className="antialiased pattern font-sans transition-colors duration-300">
+        <body className="antialiased font-sans transition-colors duration-300 bg-background min-h-screen">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

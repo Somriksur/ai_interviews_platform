@@ -105,10 +105,13 @@ export async function GET(
         }
 
         const evaluatedAt = reportData.aiMetadata?.evaluatedAt?.toDate?.() || 
-                           new Date(reportData.aiMetadata?.evaluatedAt) ||
                            reportData.createdAt?.toDate?.() ||
-                           new Date(reportData.createdAt) ||
                            new Date();
+        
+        // Ensure evaluatedAt is a valid date
+        const validEvaluatedAt = evaluatedAt instanceof Date && !isNaN(evaluatedAt.getTime()) 
+          ? evaluatedAt 
+          : new Date();
 
         return {
           id: doc.id,
@@ -158,7 +161,7 @@ export async function GET(
           transcript: reportData.transcript || {},
           
           // Metadata
-          generatedAt: evaluatedAt.toISOString(),
+          generatedAt: validEvaluatedAt.toISOString(),
           reportType: 'advanced_nlp',
           processingTime: reportData.aiMetadata?.processingTime || 0,
           nlpVersion: reportData.aiMetadata?.nlpVersion || '3.0.0',

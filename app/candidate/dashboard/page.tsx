@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import CandidateInterviewCard from "@/components/CandidateInterviewCard";
+import BatchFixScoresButton from "@/components/BatchFixScoresButton";
+import ScoreFixNotification from "@/components/ScoreFixNotification";
 import { getAvailableInterviews, getCandidateInterviews } from "@/lib/actions/candidate.action";
 
 export default async function CandidateDashboard() {
@@ -10,8 +12,8 @@ export default async function CandidateDashboard() {
         redirect("/auth/sign-in");
     }
 
-    // Allow access for "candidate" role only
-    if (user.role !== "candidate") {
+    // Allow access for "candidate" or "student" role
+    if (user.role !== "candidate" && user.role !== "student") {
         redirect("/");
     }
 
@@ -20,12 +22,25 @@ export default async function CandidateDashboard() {
         getCandidateInterviews(user.id),
     ]);
 
+    // Count interviews with low scores (likely affected by the issue)
+    const lowScoreCount = myInterviews.filter((interview: any) => 
+        interview.totalScore !== undefined && interview.totalScore < 25
+    ).length;
+
     return (
         <div className="container mx-auto p-6 space-y-8">
+            <ScoreFixNotification />
+            
             <div>
                 <h1 className="text-3xl font-bold">Candidate Dashboard</h1>
                 <p className="text-gray-400 mt-2">Welcome, {user.name}!</p>
             </div>
+
+            {/* Batch Fix Button - shows only if there are low scores */}
+            <BatchFixScoresButton 
+                userId={user.id}
+                lowScoreCount={lowScoreCount}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="card p-6">

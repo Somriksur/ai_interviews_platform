@@ -91,6 +91,9 @@ interface GetLatestInterviewsParams {
 interface SignInParams {
   email: string;
   idToken: string;
+  uid?: string;
+  name?: string;
+  role?: "organization" | "college" | "student" | "candidate";
 }
 
 interface SignUpParams {
